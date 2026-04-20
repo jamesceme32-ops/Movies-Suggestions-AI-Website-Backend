@@ -6,23 +6,37 @@
   .top-header { padding:40px 0 24px; display:flex; align-items:flex-end; justify-content:space-between; flex-wrap:wrap; gap:16px; }
   .top-title { font-family:'Space Grotesk',sans-serif; font-size:1.6rem; font-weight:700; }
   .top-title em { color:var(--gold); font-style:normal; }
-  .col-rank   { width:40px; color:var(--dim-white); text-align:center; font-family:'Share Tech Mono',monospace; }
-  .col-title  { min-width:160px; max-width:260px; white-space:normal; word-break:break-word; }
-  .col-year   { min-width:52px; white-space:nowrap; }
-  .col-genre  { min-width:100px; white-space:normal; }
-  .col-dur    { min-width:70px; white-space:nowrap; }
-  .col-num    { min-width:60px; white-space:nowrap; text-align:right; }
-  .col-links  { min-width:100px; }
+
+  /* Top 10 row colors */
+  tr.rank-1 td { background:rgba(240,192,64,.13); border-left:3px solid #f0c040; }
+  tr.rank-2 td { background:rgba(192,192,192,.10); border-left:3px solid #c0c0c0; }
+  tr.rank-3 td { background:rgba(205,127,50,.12);  border-left:3px solid #cd7f32; }
+  tr.rank-top td { background:rgba(139,92,246,.08); border-left:3px solid rgba(139,92,246,.5); }
+  .rank-badge { display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:50%; font-family:'Space Grotesk',sans-serif; font-size:.8rem; font-weight:700; }
+  .rank-badge.r1 { background:rgba(240,192,64,.25); color:#f0c040; border:1px solid #f0c040; }
+  .rank-badge.r2 { background:rgba(192,192,192,.2); color:#d0d0d0; border:1px solid #c0c0c0; }
+  .rank-badge.r3 { background:rgba(205,127,50,.2);  color:#cd7f32; border:1px solid #cd7f32; }
+  .rank-badge.rt { background:rgba(139,92,246,.15); color:#a78bfa; border:1px solid rgba(139,92,246,.5); }
+  .rank-badge.rn { background:transparent; color:var(--dim-white); border:1px solid var(--panel-border); }
+
+  .col-title { min-width:160px; max-width:260px; white-space:normal; overflow-wrap:break-word; word-break:normal; }
+  .col-year  { min-width:52px;  white-space:nowrap; }
+  .col-genre { min-width:100px; max-width:160px; white-space:normal; overflow-wrap:break-word; word-break:normal; }
+  .col-dur   { min-width:70px;  white-space:nowrap; }
+  .col-num   { min-width:60px;  white-space:nowrap; text-align:right; }
+  .col-links { min-width:105px; white-space:nowrap; }
 
   .expand-btn { display:inline-flex; align-items:center; gap:4px; font-size:.72rem; color:var(--dim-white); background:none; border:none; cursor:pointer; padding:3px 0 0; font-family:'Inter',sans-serif; transition:color .15s; }
   .expand-btn:hover { color:var(--cyan); }
   .expand-btn .arrow { transition:transform .2s; display:inline-block; }
   .expand-btn.open .arrow { transform:rotate(180deg); }
-  .details-row td { background:rgba(7,13,31,.6); border-bottom:1px solid var(--panel-border) !important; padding:12px 16px !important; }
+  .details-row td { background:rgba(7,13,31,.7); border-bottom:1px solid var(--panel-border) !important; padding:12px 16px !important; border-left:none !important; }
   .details-inner { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; font-size:.83rem; }
   @media(max-width:700px){ .details-inner { grid-template-columns:1fr; } }
   .details-inner strong { color:var(--cyan); font-weight:600; display:block; margin-bottom:3px; font-size:.72rem; text-transform:uppercase; letter-spacing:.06em; }
   .details-inner p { color:var(--star-white); line-height:1.5; }
+
+  .section-divider td { background:rgba(13,31,60,.5) !important; color:var(--dim-white); font-size:.72rem; font-family:'Space Grotesk',sans-serif; letter-spacing:.1em; text-transform:uppercase; padding:6px 12px !important; border-left:none !important; }
 
   th.sortable { cursor:pointer; }
   th.sortable:hover { color:var(--gold); }
@@ -35,9 +49,9 @@
 <div class="top-header">
   <div>
     <h2 class="top-title">JZ's <em>Top Movies</em></h2>
-    <p style="font-size:.85rem;color:var(--dim-white);margin-top:6px;">{{ total_rated }} reviewed movies, ranked by personal score</p>
+    <p style="font-size:.85rem;color:var(--dim-white);margin-top:6px;">{{ total_rated }} reviewed movies — top 10 highlighted</p>
   </div>
-  <a href="/suggest" class="btn btn-secondary btn-sm">← Back to Suggestions</a>
+  <a href="/suggest" class="btn btn-secondary btn-sm">← Back to Recommendations</a>
 </div>
 
 <div class="panel">
@@ -46,97 +60,109 @@
     <table id="top-table">
       <thead>
         <tr>
-          <th class="col-rank">#</th>
+          <th style="width:44px;">#</th>
           <th class="sortable" data-col="1">Title <span class="sort-arrow">↕</span></th>
           <th class="sortable" data-col="2">Year <span class="sort-arrow">↕</span></th>
           <th class="sortable" data-col="3">Genre <span class="sort-arrow">↕</span></th>
           <th class="sortable" data-col="4">Duration <span class="sort-arrow">↕</span></th>
           <th class="sortable" data-col="5">My Score <span class="sort-arrow">↕</span></th>
-          <th class="sortable" data-col="6">IMDB <span class="sort-arrow">↕</span></th>
+          <th class="sortable" data-col="6">IMDb Rating <span class="sort-arrow">↕</span></th>
           <th>Links</th>
         </tr>
       </thead>
       <tbody>
+        {% set shown_divider = namespace(val=false) %}
         {% for m in movies %}
-        <tr class="result-row" id="row-{{ loop.index0 }}">
-          <td class="col-rank">{{ loop.index }}</td>
-          <td class="col-title">
-            <div>{{ m.title }}</div>
-            {% if m.plot or m.director or m.actors %}
-            <button class="expand-btn" data-idx="{{ loop.index0 }}">
-              <span class="arrow">▼</span> Details
-            </button>
-            {% endif %}
-          </td>
-          <td class="col-year score-dim">{{ m.year or '—' }}</td>
-          <td class="col-genre">{{ m.genre or '—' }}</td>
-          <td class="col-dur score-dim">{{ m.duration or '—' }}</td>
-          <td class="col-num">
-            <span class="score-gold" style="font-size:1rem;font-weight:700;">{{ m.my_score }}</span>
-            <span class="score-dim" style="font-size:.75rem;">/10</span>
-          </td>
-          <td class="col-num score-gold">{{ m.imdb or '—' }}</td>
-          <td class="col-links">
-            <div class="links">
-              {% if m.imdb_url %}<a class="link-imdb" href="{{ m.imdb_url }}" target="_blank" rel="noopener">IMDb</a>{% endif %}
-              <a class="link-google" href="{{ m.google_url }}" target="_blank" rel="noopener">Google</a>
-            </div>
-          </td>
-        </tr>
-        <tr class="details-row" id="details-{{ loop.index0 }}" style="display:none">
-          <td colspan="8">
-            <div class="details-inner">
-              <div><strong>Plot</strong><p>{{ m.plot or 'Not available.' }}</p></div>
-              <div><strong>Director</strong><p>{{ m.director or '—' }}</p></div>
-              <div><strong>Cast</strong><p>{{ m.actors or '—' }}</p></div>
-            </div>
-          </td>
-        </tr>
+
+          {% if not shown_divider.val and not m.top10_rank %}
+            {% set shown_divider.val = true %}
+            <tr class="section-divider"><td colspan="8">All Reviewed Movies</td></tr>
+          {% endif %}
+
+          {% if m.top10_rank == 1 %}
+            {% set row_class = "rank-1" %}{% set badge_class = "r1" %}
+          {% elif m.top10_rank == 2 %}
+            {% set row_class = "rank-2" %}{% set badge_class = "r2" %}
+          {% elif m.top10_rank == 3 %}
+            {% set row_class = "rank-3" %}{% set badge_class = "r3" %}
+          {% elif m.top10_rank %}
+            {% set row_class = "rank-top" %}{% set badge_class = "rt" %}
+          {% else %}
+            {% set row_class = "" %}{% set badge_class = "rn" %}
+          {% endif %}
+
+          <tr class="result-row {{ row_class }}" id="row-{{ loop.index0 }}">
+            <td style="text-align:center;">
+              <span class="rank-badge {{ badge_class }}">
+                {{ m.top10_rank if m.top10_rank else loop.index }}
+              </span>
+            </td>
+            <td class="col-title">
+              <div>{{ m.title }}</div>
+              {% if m.plot or m.director or m.actors %}
+              <button class="expand-btn" data-idx="{{ loop.index0 }}"><span class="arrow">▼</span> Details</button>
+              {% endif %}
+            </td>
+            <td class="col-year score-dim">{{ m.year or '—' }}</td>
+            <td class="col-genre">{{ m.genre or '—' }}</td>
+            <td class="col-dur score-dim">{{ m.duration or '—' }}</td>
+            <td class="col-num">
+              <span class="score-gold" style="font-size:1rem;font-weight:700;">{{ m.my_score }}</span>
+              <span class="score-dim" style="font-size:.75rem;">/10</span>
+            </td>
+            <td class="col-num score-gold">{{ m.imdb or '—' }}</td>
+            <td class="col-links">
+              <div class="links">
+                {% if m.imdb_url %}<a class="link-imdb" href="{{ m.imdb_url }}" target="_blank" rel="noopener">IMDb</a>{% endif %}
+                <a class="link-google" href="{{ m.google_url }}" target="_blank" rel="noopener">Google</a>
+              </div>
+            </td>
+          </tr>
+          <tr class="details-row" id="details-{{ loop.index0 }}" style="display:none">
+            <td colspan="8">
+              <div class="details-inner">
+                <div><strong>Plot</strong><p>{{ m.plot or 'Not available.' }}</p></div>
+                <div><strong>Director</strong><p>{{ m.director or '—' }}</p></div>
+                <div><strong>Cast</strong><p>{{ m.actors or '—' }}</p></div>
+              </div>
+            </td>
+          </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
   {% else %}
-  <div style="text-align:center;padding:48px;color:var(--dim-white);font-size:.9rem;">
-    <span style="font-size:2rem;display:block;margin-bottom:12px;">🎬</span>No reviewed movies yet.
-  </div>
+  <div style="text-align:center;padding:48px;color:var(--dim-white);font-size:.9rem;"><span style="font-size:2rem;display:block;margin-bottom:12px;">🎬</span>No reviewed movies yet.</div>
   {% endif %}
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-  document.querySelectorAll('.expand-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const row = document.getElementById(`details-${btn.dataset.idx}`);
-      const open = row.style.display !== 'none';
-      row.style.display = open ? 'none' : 'table-row';
-      btn.classList.toggle('open', !open);
+  document.querySelectorAll('.expand-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const row=document.getElementById(`details-${btn.dataset.idx}`);
+      const open=row.style.display!=='none';
+      row.style.display=open?'none':'table-row';
+      btn.classList.toggle('open',!open);
     });
   });
-
-  const table = document.getElementById('top-table');
-  if (table) {
-    let lastCol=-1, lastAsc=false;
-    table.querySelectorAll('th.sortable').forEach(th => {
-      th.addEventListener('click', () => {
-        const col=parseInt(th.dataset.col);
-        const asc=lastCol===col?!lastAsc:false;
-        lastCol=col; lastAsc=asc;
+  const table=document.getElementById('top-table');
+  if(table){
+    let lc=-1,la=false;
+    table.querySelectorAll('th.sortable').forEach(th=>{
+      th.addEventListener('click',()=>{
+        const col=parseInt(th.dataset.col),asc=lc===col?!la:false; lc=col; la=asc;
         table.querySelectorAll('th').forEach(h=>h.classList.remove('sorted'));
         th.classList.add('sorted');
-        const arr=th.querySelector('.sort-arrow'); if(arr) arr.textContent=asc?'↑':'↓';
+        const arr=th.querySelector('.sort-arrow');if(arr)arr.textContent=asc?'↑':'↓';
         const tbody=table.querySelector('tbody');
         Array.from(tbody.querySelectorAll('.result-row')).sort((a,b)=>{
-          const av=a.cells[col]?.textContent.trim()||'';
-          const bv=b.cells[col]?.textContent.trim()||'';
+          const av=a.cells[col]?.textContent.trim()||'',bv=b.cells[col]?.textContent.trim()||'';
           const an=parseFloat(av),bn=parseFloat(bv);
           if(!isNaN(an)&&!isNaN(bn)) return asc?an-bn:bn-an;
           return asc?av.localeCompare(bv):bv.localeCompare(av);
-        }).forEach(r=>{
-          const dr=document.getElementById(`details-${r.id.split('-')[1]}`);
-          tbody.appendChild(r); if(dr) tbody.appendChild(dr);
-        });
+        }).forEach(r=>{const dr=document.getElementById(`details-${r.id.split('-')[1]}`);tbody.appendChild(r);if(dr)tbody.appendChild(dr);});
       });
     });
   }

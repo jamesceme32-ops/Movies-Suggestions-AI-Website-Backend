@@ -1,145 +1,180 @@
 {% extends "base.html" %}
-{% block title %}Add Movie — JZ's Cinematch{% endblock %}
+{% block title %}Add Movies — JZ's Cinematch{% endblock %}
 
 {% block head %}
 <style>
-  .add-page { max-width:760px; margin:0 auto; padding:40px 0; }
+  .add-page { max-width:820px; margin:0 auto; padding:40px 0; }
   .add-title { font-family:'Space Grotesk',sans-serif; font-size:1.6rem; font-weight:700; margin-bottom:6px; }
   .add-title em { color:var(--gold); font-style:normal; }
-  .add-sub { font-size:.88rem; color:var(--dim-white); margin-bottom:28px; }
 
+  /* Tabs */
+  .tab-bar { display:flex; gap:0; border-bottom:1px solid var(--panel-border); margin-bottom:24px; }
+  .tab-btn { font-family:'Space Grotesk',sans-serif; font-size:.85rem; font-weight:600; padding:10px 22px; background:transparent; border:none; border-bottom:2px solid transparent; color:var(--dim-white); cursor:pointer; transition:all .18s; margin-bottom:-1px; }
+  .tab-btn:hover { color:var(--star-white); }
+  .tab-btn.active { color:var(--gold); border-bottom-color:var(--gold); }
+  .tab-pane { display:none; }
+  .tab-pane.active { display:block; }
+
+  /* Search */
   .search-row { display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; }
   .search-row .field { flex:1; min-width:160px; }
   .search-row .field-sm { width:110px; }
-
-  /* Search results */
-  .search-results { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:12px; margin-top:16px; }
-  .movie-card {
-    background:rgba(7,13,31,.7); border:1px solid var(--panel-border);
-    border-radius:8px; padding:12px; cursor:pointer; transition:all .18s; text-align:center;
-  }
+  .search-results { display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); gap:12px; margin-top:16px; }
+  .movie-card { background:rgba(7,13,31,.7); border:1px solid var(--panel-border); border-radius:8px; padding:10px; cursor:pointer; transition:all .18s; text-align:center; }
   .movie-card:hover { border-color:var(--cyan); background:rgba(64,200,240,.06); }
   .movie-card.selected { border-color:var(--gold); background:rgba(240,192,64,.08); }
-  .movie-card img { width:100%; aspect-ratio:2/3; object-fit:cover; border-radius:4px; margin-bottom:8px; background:rgba(255,255,255,.05); }
-  .movie-card .mc-title { font-size:.8rem; font-weight:600; color:var(--star-white); line-height:1.3; margin-bottom:2px; }
-  .movie-card .mc-year { font-size:.72rem; color:var(--dim-white); }
+  .movie-card img { width:100%; aspect-ratio:2/3; object-fit:cover; border-radius:4px; margin-bottom:6px; background:rgba(255,255,255,.05); }
+  .movie-card .mc-title { font-size:.78rem; font-weight:600; color:var(--star-white); line-height:1.3; margin-bottom:2px; }
+  .movie-card .mc-year { font-size:.7rem; color:var(--dim-white); }
 
-  /* Details panel */
+  /* Details */
   .details-panel { display:none; margin-top:20px; }
-  .details-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px; }
+  .details-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px; }
   @media(max-width:600px){ .details-grid { grid-template-columns:1fr; } }
   .detail-field { background:rgba(7,13,31,.5); border:1px solid var(--panel-border); border-radius:6px; padding:10px 14px; }
   .detail-label { font-size:.68rem; font-weight:600; text-transform:uppercase; letter-spacing:.06em; color:var(--dim-white); margin-bottom:3px; }
   .detail-value { font-size:.88rem; color:var(--star-white); }
-  .plot-field { background:rgba(7,13,31,.5); border:1px solid var(--panel-border); border-radius:6px; padding:10px 14px; margin-bottom:16px; }
-  .plot-field .detail-label { font-size:.68rem; font-weight:600; text-transform:uppercase; letter-spacing:.06em; color:var(--dim-white); margin-bottom:4px; }
-  .plot-field .detail-value { font-size:.85rem; color:var(--star-white); line-height:1.55; }
-
-  /* Score buttons */
-  .score-row { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:20px; }
-  .score-btn {
-    width:42px; height:42px; border-radius:8px; border:1px solid var(--panel-border);
-    background:rgba(7,13,31,.5); color:var(--dim-white); font-size:.9rem; font-weight:600;
-    cursor:pointer; transition:all .15s; font-family:'Space Grotesk',sans-serif;
-  }
-  .score-btn:hover { border-color:var(--gold); color:var(--gold); }
-  .score-btn.active { background:rgba(240,192,64,.15); border-color:var(--gold); color:var(--gold); box-shadow:0 0 10px rgba(240,192,64,.25); }
-
-  .watched-toggle { display:flex; gap:10px; align-items:center; margin-bottom:20px; }
-  .watched-toggle label { font-size:.88rem; color:var(--star-white); cursor:pointer; }
-  .watched-toggle input[type="checkbox"] { width:18px; height:18px; cursor:pointer; accent-color:var(--cyan); }
-
-  .google-link-row { margin-bottom:16px; font-size:.82rem; }
+  .plot-field { background:rgba(7,13,31,.5); border:1px solid var(--panel-border); border-radius:6px; padding:10px 14px; margin-bottom:12px; }
+  .google-link-row { margin-bottom:14px; font-size:.82rem; }
   .google-link-row a { color:var(--cyan); text-decoration:none; }
   .google-link-row a:hover { text-decoration:underline; }
 
-  .alert-success { padding:12px 16px; border-radius:8px; background:rgba(34,197,94,.12); border:1px solid rgba(34,197,94,.35); color:#86efac; font-size:.88rem; margin-bottom:16px; }
-  .alert-error   { padding:12px 16px; border-radius:8px; background:rgba(224,80,80,.12); border:1px solid rgba(224,80,80,.35); color:#fca5a5; font-size:.88rem; margin-bottom:16px; }
+  /* Score buttons */
+  .score-row { display:flex; gap:7px; flex-wrap:wrap; margin-bottom:18px; }
+  .score-btn { width:40px; height:40px; border-radius:8px; border:1px solid var(--panel-border); background:rgba(7,13,31,.5); color:var(--dim-white); font-size:.88rem; font-weight:600; cursor:pointer; transition:all .15s; font-family:'Space Grotesk',sans-serif; }
+  .score-btn:hover { border-color:var(--gold); color:var(--gold); }
+  .score-btn.active { background:rgba(240,192,64,.15); border-color:var(--gold); color:var(--gold); box-shadow:0 0 10px rgba(240,192,64,.2); }
 
-  #no-results { font-size:.85rem; color:var(--dim-white); margin-top:12px; display:none; }
-  #searching  { font-size:.82rem; color:var(--dim-white); margin-top:12px; display:none; }
+  .watched-toggle { display:flex; gap:10px; align-items:center; margin-bottom:18px; }
+  .watched-toggle label { font-size:.88rem; color:var(--star-white); cursor:pointer; }
+  .watched-toggle input[type="checkbox"] { width:18px; height:18px; cursor:pointer; accent-color:var(--cyan); }
+
+  /* Top 10 */
+  .top10-layout { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+  @media(max-width:640px){ .top10-layout { grid-template-columns:1fr; } }
+  .top10-pool { max-height:500px; overflow-y:auto; }
+  .pool-item { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 10px; border-bottom:1px solid var(--panel-border); font-size:.84rem; }
+  .pool-item:hover { background:rgba(64,200,240,.04); }
+  .pool-item .pi-info { flex:1; min-width:0; }
+  .pool-item .pi-title { font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .pool-item .pi-meta  { font-size:.72rem; color:var(--dim-white); }
+  .pool-item .pi-add   { font-size:.75rem; padding:3px 8px; white-space:nowrap; }
+  .top10-list { min-height:200px; }
+  .top10-item { display:flex; align-items:center; gap:8px; padding:8px 10px; border:1px solid var(--panel-border); border-radius:6px; margin-bottom:6px; background:rgba(7,13,31,.4); font-size:.84rem; }
+  .top10-item .ti-rank { font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:.85rem; width:20px; text-align:center; }
+  .ti-rank.r1 { color:#f0c040; } .ti-rank.r2 { color:#c0c0c0; } .ti-rank.r3 { color:#cd7f32; } .ti-rank.rt { color:#a78bfa; }
+  .top10-item .ti-title { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .top10-item .ti-controls { display:flex; gap:4px; }
+  .ti-btn { width:26px; height:26px; border-radius:4px; border:1px solid var(--panel-border); background:transparent; color:var(--dim-white); cursor:pointer; font-size:.8rem; display:flex; align-items:center; justify-content:center; transition:all .15s; }
+  .ti-btn:hover { border-color:var(--cyan); color:var(--cyan); }
+  .ti-btn.remove:hover { border-color:#e05050; color:#e05050; }
+  .top10-empty { color:var(--dim-white); font-size:.83rem; text-align:center; padding:24px; }
+  .pool-search { margin-bottom:10px; }
+
+  /* Edit tab */
+  .edit-search { margin-bottom:14px; }
+  .edit-list { max-height:480px; overflow-y:auto; }
+  .edit-item { border-bottom:1px solid var(--panel-border); }
+  .edit-header { display:flex; align-items:center; justify-content:space-between; padding:10px 12px; cursor:pointer; transition:background .15s; }
+  .edit-header:hover { background:rgba(64,200,240,.04); }
+  .edit-header .eh-title { font-weight:500; font-size:.88rem; }
+  .edit-header .eh-meta  { font-size:.75rem; color:var(--dim-white); margin-top:2px; }
+  .edit-header .eh-arrow { color:var(--dim-white); font-size:.8rem; transition:transform .2s; }
+  .edit-header.open .eh-arrow { transform:rotate(180deg); color:var(--cyan); }
+  .edit-body { display:none; padding:14px 16px; background:rgba(7,13,31,.4); border-top:1px solid var(--panel-border); }
+  .edit-body.open { display:block; }
+
+  .alert-success { padding:10px 14px; border-radius:8px; background:rgba(34,197,94,.12); border:1px solid rgba(34,197,94,.35); color:#86efac; font-size:.85rem; margin-bottom:14px; }
+  .alert-error   { padding:10px 14px; border-radius:8px; background:rgba(224,80,80,.12); border:1px solid rgba(224,80,80,.35); color:#fca5a5; font-size:.85rem; margin-bottom:14px; }
+  #flash-msg { margin-bottom:16px; display:none; }
+  #searching,#no-results { font-size:.85rem; color:var(--dim-white); margin-top:12px; display:none; }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="add-page">
-  <h2 class="add-title">Add a <em>Movie</em></h2>
-  <p class="add-sub">Search by title to look up all details automatically, then save it to your list.</p>
-
+  <h2 class="add-title">Add Movies <em>(JZ Only)</em></h2>
   <div id="flash-msg"></div>
 
-  <!-- Search -->
-  <div class="panel">
-    <div class="panel-title">SEARCH</div>
-    <div class="search-row">
-      <div class="field">
-        <label class="form-label">Movie Title</label>
-        <input type="text" id="searchInput" placeholder="e.g. The Godfather, Inception..." autocomplete="off">
-      </div>
-      <div class="field-sm">
-        <label class="form-label">Year (optional)</label>
-        <input type="text" id="yearInput" placeholder="1972" maxlength="4">
-      </div>
-      <div>
-        <label class="form-label">&nbsp;</label>
-        <button class="btn btn-primary" id="searchBtn" style="white-space:nowrap;">🔍 Search</button>
-      </div>
-    </div>
-    <div id="searching">Searching...</div>
-    <div id="no-results">No results found. Try a different title or year.</div>
-    <div class="search-results" id="searchResults"></div>
+  <div class="tab-bar">
+    <button class="tab-btn active" data-tab="search">＋ Search &amp; Add</button>
+    <button class="tab-btn" data-tab="top10">⭐ My Top 10</button>
+    <button class="tab-btn" data-tab="edit">✏️ Edit Movies</button>
   </div>
 
-  <!-- Movie Details (shown after selection) -->
-  <div class="panel details-panel" id="detailsPanel">
-    <div class="panel-title">MOVIE DETAILS</div>
-
-    <div class="details-grid">
-      <div class="detail-field"><div class="detail-label">Title</div><div class="detail-value" id="d-title">—</div></div>
-      <div class="detail-field"><div class="detail-label">Year</div><div class="detail-value" id="d-year">—</div></div>
-      <div class="detail-field"><div class="detail-label">Genre</div><div class="detail-value" id="d-genre">—</div></div>
-      <div class="detail-field"><div class="detail-label">Duration</div><div class="detail-value" id="d-duration">—</div></div>
-      <div class="detail-field"><div class="detail-label">IMDb Rating</div><div class="detail-value" id="d-imdb">—</div></div>
-      <div class="detail-field"><div class="detail-label">Director</div><div class="detail-value" id="d-director">—</div></div>
-    </div>
-
-    <div class="detail-field" style="margin-bottom:12px;">
-      <div class="detail-label">Cast (Top 8)</div>
-      <div class="detail-value" id="d-actors">—</div>
-    </div>
-
-    <div class="plot-field">
-      <div class="detail-label">Plot</div>
-      <div class="detail-value" id="d-plot">—</div>
-    </div>
-
-    <div class="google-link-row">
-      🔗 Google search: <a id="d-google-link" href="#" target="_blank" rel="noopener" id="d-google">—</a>
-    </div>
-
-    <!-- Watched toggle -->
-    <div class="watched-toggle">
-      <input type="checkbox" id="watchedCheck">
-      <label for="watchedCheck">I've watched this movie</label>
-    </div>
-
-    <!-- Score -->
-    <div id="score-section" style="display:none;">
-      <div class="form-label" style="margin-bottom:10px;">My Score (1–10)</div>
-      <div class="score-row" id="scoreRow">
-        {% for i in range(1, 11) %}
-        <button class="score-btn" data-score="{{ i }}">{{ i }}</button>
-        {% endfor %}
+  <!-- ══ TAB: SEARCH & ADD ══ -->
+  <div class="tab-pane active" id="tab-search">
+    <div class="panel">
+      <div class="panel-title">SEARCH</div>
+      <div class="search-row">
+        <div class="field"><label class="form-label">Movie Title</label><input type="text" id="searchInput" placeholder="e.g. The Godfather, Inception..." autocomplete="off"></div>
+        <div class="field-sm"><label class="form-label">Year (optional)</label><input type="text" id="yearInput" placeholder="1972" maxlength="4"></div>
+        <div><label class="form-label">&nbsp;</label><button class="btn btn-primary" id="searchBtn">🔍 Search</button></div>
       </div>
+      <div id="searching">Searching...</div>
+      <div id="no-results">No results found.</div>
+      <div class="search-results" id="searchResults"></div>
     </div>
 
-    <button class="btn btn-primary" id="saveBtn" style="width:100%;justify-content:center;">
-      <span id="saveTxt">◈ ADD TO MY LIST</span>
-      <span id="saveLoad" style="display:none">Saving...</span>
-    </button>
+    <div class="panel details-panel" id="detailsPanel">
+      <div class="panel-title">MOVIE DETAILS</div>
+      <div class="details-grid">
+        <div class="detail-field"><div class="detail-label">Title</div><div class="detail-value" id="d-title">—</div></div>
+        <div class="detail-field"><div class="detail-label">Year</div><div class="detail-value" id="d-year">—</div></div>
+        <div class="detail-field"><div class="detail-label">Genre</div><div class="detail-value" id="d-genre">—</div></div>
+        <div class="detail-field"><div class="detail-label">Duration</div><div class="detail-value" id="d-duration">—</div></div>
+        <div class="detail-field"><div class="detail-label">IMDb Rating</div><div class="detail-value" id="d-imdb">—</div></div>
+        <div class="detail-field"><div class="detail-label">Director</div><div class="detail-value" id="d-director">—</div></div>
+      </div>
+      <div class="detail-field" style="margin-bottom:10px;"><div class="detail-label">Cast (Top 8)</div><div class="detail-value" id="d-actors">—</div></div>
+      <div class="plot-field"><div class="detail-label">Plot</div><div class="detail-value" id="d-plot">—</div></div>
+      <div class="google-link-row">🔗 <a id="d-google-link" href="#" target="_blank" rel="noopener">Google search link</a></div>
+      <div class="watched-toggle"><input type="checkbox" id="watchedCheck"><label for="watchedCheck">I've watched this movie</label></div>
+      <div id="score-section" style="display:none;">
+        <div class="form-label" style="margin-bottom:10px;">My Score (1–10)</div>
+        <div class="score-row" id="scoreRow">
+          {% for i in range(1,11) %}<button class="score-btn" data-score="{{ i }}">{{ i }}</button>{% endfor %}
+        </div>
+      </div>
+      <button class="btn btn-primary" id="saveBtn" style="width:100%;justify-content:center;">
+        <span id="saveTxt">◈ ADD TO MY LIST</span><span id="saveLoad" style="display:none">Saving...</span>
+      </button>
+    </div>
   </div>
 
-  <div style="margin-top:12px; text-align:right;">
+  <!-- ══ TAB: TOP 10 ══ -->
+  <div class="tab-pane" id="tab-top10">
+    <div class="panel">
+      <div class="panel-title">MY TOP 10</div>
+      <p style="font-size:.84rem;color:var(--dim-white);margin-bottom:16px;">Select up to 10 movies from your list and order them. They'll appear highlighted on the Top Movies page.</p>
+      <div class="top10-layout">
+        <div>
+          <div class="form-label">Your Watched Movies</div>
+          <input type="text" class="pool-search" id="poolSearch" placeholder="Filter movies...">
+          <div class="top10-pool" id="poolList"><div style="color:var(--dim-white);font-size:.83rem;padding:12px;">Loading...</div></div>
+        </div>
+        <div>
+          <div class="form-label">Top 10 (in order)</div>
+          <div class="top10-list" id="top10List"><div class="top10-empty">Add movies from the left →</div></div>
+          <div style="margin-top:12px;display:flex;gap:8px;">
+            <button class="btn btn-primary btn-sm" id="saveTop10Btn" style="flex:1;justify-content:center;">💾 Save Top 10</button>
+            <button class="btn btn-secondary btn-sm" id="clearTop10Btn">Clear</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ TAB: EDIT ══ -->
+  <div class="tab-pane" id="tab-edit">
+    <div class="panel">
+      <div class="panel-title">EDIT MOVIES</div>
+      <input type="text" class="edit-search" id="editSearch" placeholder="Search your movie list...">
+      <div class="edit-list" id="editList"><div style="color:var(--dim-white);font-size:.83rem;padding:12px;">Loading...</div></div>
+    </div>
+  </div>
+
+  <div style="margin-top:8px;text-align:right;">
     <a href="/admin/logout" class="btn btn-secondary btn-sm">🔒 Logout</a>
   </div>
 </div>
@@ -147,67 +182,66 @@
 
 {% block scripts %}
 <script>
-  let selectedMovie = null;
-  let selectedScore = null;
+  // ── Tabs ──────────────────────────────────────────────────────────────────
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+      if (btn.dataset.tab === 'top10' && !poolLoaded) loadPool();
+      if (btn.dataset.tab === 'edit'  && !editLoaded) loadEdit();
+    });
+  });
 
-  // ── Search ────────────────────────────────────────────────────────────────
+  const flashEl = document.getElementById('flash-msg');
+  function showFlash(msg, ok) {
+    flashEl.className = ok ? 'alert-success' : 'alert-error';
+    flashEl.textContent = msg; flashEl.style.display = 'block';
+    setTimeout(() => flashEl.style.display = 'none', 5000);
+  }
+
+  // ══════════════════════════════════════════════
+  //  TAB 1: SEARCH & ADD
+  // ══════════════════════════════════════════════
+  let selectedMovie = null, selectedScore = null;
+
   async function doSearch() {
-    const q    = document.getElementById('searchInput').value.trim();
-    const year = document.getElementById('yearInput').value.trim();
+    const q = document.getElementById('searchInput').value.trim();
+    const y = document.getElementById('yearInput').value.trim();
     if (!q) return;
-
     document.getElementById('searching').style.display = 'block';
     document.getElementById('no-results').style.display = 'none';
     document.getElementById('searchResults').innerHTML = '';
     document.getElementById('detailsPanel').style.display = 'none';
     selectedMovie = null;
-
     try {
-      const url = `/api/search_movie?q=${encodeURIComponent(q)}${year ? '&year='+year : ''}`;
-      const res = await fetch(url);
+      const res = await fetch(`/api/search_movie?q=${encodeURIComponent(q)}${y?'&year='+y:''}`);
       const data = await res.json();
       document.getElementById('searching').style.display = 'none';
-
-      if (!data.results || data.results.length === 0) {
-        document.getElementById('no-results').style.display = 'block';
-        return;
-      }
-
+      if (!data.results?.length) { document.getElementById('no-results').style.display = 'block'; return; }
       const container = document.getElementById('searchResults');
       data.results.forEach(m => {
-        const card = document.createElement('div');
-        card.className = 'movie-card';
-        card.dataset.id = m.imdbID;
+        const card = document.createElement('div'); card.className = 'movie-card'; card.dataset.id = m.imdbID;
         const poster = (m.Poster && m.Poster !== 'N/A') ? m.Poster : '';
-        card.innerHTML = `
-          ${poster ? `<img src="${poster}" alt="${m.Title}" loading="lazy">` : '<div style="aspect-ratio:2/3;background:rgba(255,255,255,.05);border-radius:4px;margin-bottom:8px;display:flex;align-items:center;justify-content:center;font-size:2rem;">🎬</div>'}
-          <div class="mc-title">${m.Title}</div>
-          <div class="mc-year">${m.Year}</div>`;
+        card.innerHTML = `${poster?`<img src="${poster}" alt="${m.Title}" loading="lazy">`:'<div style="aspect-ratio:2/3;background:rgba(255,255,255,.05);border-radius:4px;margin-bottom:6px;display:flex;align-items:center;justify-content:center;font-size:2rem;">🎬</div>'}
+          <div class="mc-title">${m.Title}</div><div class="mc-year">${m.Year}</div>`;
         card.addEventListener('click', () => selectMovie(m.imdbID, card));
         container.appendChild(card);
       });
-    } catch(e) {
-      document.getElementById('searching').style.display = 'none';
-      document.getElementById('no-results').style.display = 'block';
-    }
+    } catch(e) { document.getElementById('searching').style.display='none'; document.getElementById('no-results').style.display='block'; }
   }
-
   document.getElementById('searchBtn').addEventListener('click', doSearch);
   document.getElementById('searchInput').addEventListener('keydown', e => { if(e.key==='Enter') doSearch(); });
 
-  // ── Select Movie ──────────────────────────────────────────────────────────
   async function selectMovie(imdbId, card) {
     document.querySelectorAll('.movie-card').forEach(c => c.classList.remove('selected'));
     card.classList.add('selected');
-
-    const res  = await fetch(`/api/movie_details?id=${imdbId}`);
+    const res = await fetch(`/api/movie_details?id=${imdbId}`);
     const data = await res.json();
     if (data.error) { showFlash(data.error, false); return; }
-
-    selectedMovie = data;
-    selectedScore = null;
+    selectedMovie = data; selectedScore = null;
     document.querySelectorAll('.score-btn').forEach(b => b.classList.remove('active'));
-
     document.getElementById('d-title').textContent    = data.title    || '—';
     document.getElementById('d-year').textContent     = data.year     || '—';
     document.getElementById('d-genre').textContent    = data.genre    || '—';
@@ -216,77 +250,207 @@
     document.getElementById('d-director').textContent = data.director || '—';
     document.getElementById('d-actors').textContent   = data.actors   || '—';
     document.getElementById('d-plot').textContent     = data.plot     || '—';
-
     const gLink = document.getElementById('d-google-link');
-    gLink.href        = data.google_url || '#';
-    gLink.textContent = data.google_url || '—';
-
+    gLink.href = data.google_url || '#'; gLink.textContent = data.google_url || '—';
     document.getElementById('watchedCheck').checked = false;
     document.getElementById('score-section').style.display = 'none';
     document.getElementById('detailsPanel').style.display = 'block';
     document.getElementById('detailsPanel').scrollIntoView({ behavior:'smooth', block:'start' });
   }
 
-  // ── Watched toggle shows score ────────────────────────────────────────────
   document.getElementById('watchedCheck').addEventListener('change', function() {
     document.getElementById('score-section').style.display = this.checked ? 'block' : 'none';
-    if (!this.checked) { selectedScore = null; document.querySelectorAll('.score-btn').forEach(b=>b.classList.remove('active')); }
+    if (!this.checked) { selectedScore=null; document.querySelectorAll('.score-btn').forEach(b=>b.classList.remove('active')); }
   });
-
-  // ── Score buttons ─────────────────────────────────────────────────────────
   document.querySelectorAll('.score-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.score-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      selectedScore = parseInt(btn.dataset.score);
+      btn.classList.add('active'); selectedScore = parseInt(btn.dataset.score);
     });
   });
 
-  // ── Save ──────────────────────────────────────────────────────────────────
   document.getElementById('saveBtn').addEventListener('click', async () => {
     if (!selectedMovie) { showFlash('Please select a movie first.', false); return; }
-
     const watched = document.getElementById('watchedCheck').checked;
-    if (watched && selectedScore === null) { showFlash('Please select your score (1–10).', false); return; }
-
-    document.getElementById('saveTxt').style.display  = 'none';
-    document.getElementById('saveLoad').style.display = 'inline';
-    document.getElementById('saveBtn').disabled       = true;
-
+    if (watched && selectedScore===null) { showFlash('Please select your score (1–10).', false); return; }
+    document.getElementById('saveTxt').style.display='none'; document.getElementById('saveLoad').style.display='inline'; document.getElementById('saveBtn').disabled=true;
     try {
-      const payload = {
-        ...selectedMovie,
-        watched:  watched,
-        my_score: watched ? selectedScore : null,
-      };
-      const res  = await fetch('/api/save_movie', {
-        method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)
-      });
+      const res  = await fetch('/api/save_movie', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...selectedMovie,watched,my_score:watched?selectedScore:null})});
       const data = await res.json();
       if (data.success) {
-        showFlash(`✅ "${selectedMovie.title}" added to your list!`, true);
-        document.getElementById('detailsPanel').style.display = 'none';
-        document.getElementById('searchResults').innerHTML = '';
-        document.getElementById('searchInput').value = '';
-        selectedMovie = null; selectedScore = null;
-      } else {
-        showFlash(data.error || 'Failed to save.', false);
-      }
-    } catch(e) {
-      showFlash('Something went wrong. Please try again.', false);
-    }
-
-    document.getElementById('saveTxt').style.display  = 'inline';
-    document.getElementById('saveLoad').style.display = 'none';
-    document.getElementById('saveBtn').disabled       = false;
+        showFlash(`✅ "${selectedMovie.title}" added!`, true);
+        document.getElementById('detailsPanel').style.display='none'; document.getElementById('searchResults').innerHTML=''; document.getElementById('searchInput').value=''; selectedMovie=null; selectedScore=null;
+        poolLoaded=false; editLoaded=false;
+      } else { showFlash(data.error||'Failed.', false); }
+    } catch(e) { showFlash('Something went wrong.', false); }
+    document.getElementById('saveTxt').style.display='inline'; document.getElementById('saveLoad').style.display='none'; document.getElementById('saveBtn').disabled=false;
   });
 
-  function showFlash(msg, ok) {
-    const el = document.getElementById('flash-msg');
-    el.className = ok ? 'alert-success' : 'alert-error';
-    el.textContent = msg;
-    el.style.display = 'block';
-    setTimeout(() => el.style.display = 'none', 5000);
+
+  // ══════════════════════════════════════════════
+  //  TAB 2: TOP 10
+  // ══════════════════════════════════════════════
+  let poolLoaded=false, poolMovies=[], top10Keys=[];
+
+  const rankColors = ['r1','r2','r3','rt','rt','rt','rt','rt','rt','rt'];
+
+  function renderTop10() {
+    const el = document.getElementById('top10List');
+    if (!top10Keys.length) { el.innerHTML='<div class="top10-empty">Add movies from the left →</div>'; return; }
+    el.innerHTML = top10Keys.map((key,i) => {
+      const m = poolMovies.find(x=>x.key===key);
+      const label = m ? `${m.title} (${m.year||'?'})` : key.split('||')[0];
+      const rc = rankColors[i] || 'rt';
+      return `<div class="top10-item" data-key="${key}">
+        <span class="ti-rank ${rc}">${i+1}</span>
+        <span class="ti-title">${label}</span>
+        <div class="ti-controls">
+          <button class="ti-btn" onclick="moveTop10('${key}',-1)" title="Move up">↑</button>
+          <button class="ti-btn" onclick="moveTop10('${key}',1)"  title="Move down">↓</button>
+          <button class="ti-btn remove" onclick="removeTop10('${key}')" title="Remove">✕</button>
+        </div>
+      </div>`;
+    }).join('');
   }
+
+  function renderPool(filter='') {
+    const el = document.getElementById('poolList');
+    const fl = filter.toLowerCase();
+    const filtered = poolMovies.filter(m => !fl || m.title.toLowerCase().includes(fl));
+    if (!filtered.length) { el.innerHTML='<div style="color:var(--dim-white);font-size:.83rem;padding:12px;">No movies found.</div>'; return; }
+    el.innerHTML = filtered.map(m => {
+      const inTop10 = top10Keys.includes(m.key);
+      return `<div class="pool-item">
+        <div class="pi-info">
+          <div class="pi-title">${m.title}</div>
+          <div class="pi-meta">${m.year||''} ${m.my_score ? '· '+m.my_score+'/10' : ''}</div>
+        </div>
+        <button class="btn btn-secondary btn-sm pi-add" ${inTop10?'disabled style="opacity:.4"':''} onclick="addToTop10('${m.key}')">
+          ${inTop10?'✓ Added':'+ Add'}
+        </button>
+      </div>`;
+    }).join('');
+  }
+
+  async function loadPool() {
+    poolLoaded=true;
+    const [poolRes, top10Res] = await Promise.all([fetch('/api/rated_movies'), fetch('/api/top10')]);
+    const poolData  = await poolRes.json();
+    const top10Data = await top10Res.json();
+    poolMovies = poolData.movies || [];
+    top10Keys  = top10Data.top10 || [];
+    renderPool(); renderTop10();
+  }
+
+  document.getElementById('poolSearch').addEventListener('input', e => renderPool(e.target.value));
+
+  function addToTop10(key) {
+    if (top10Keys.includes(key)) return;
+    if (top10Keys.length >= 10) { showFlash('Top 10 is full. Remove one first.', false); return; }
+    top10Keys.push(key); renderPool(document.getElementById('poolSearch').value); renderTop10();
+  }
+  function removeTop10(key) {
+    top10Keys = top10Keys.filter(k=>k!==key); renderPool(document.getElementById('poolSearch').value); renderTop10();
+  }
+  function moveTop10(key, dir) {
+    const i = top10Keys.indexOf(key); if(i===-1) return;
+    const ni = i+dir; if(ni<0||ni>=top10Keys.length) return;
+    [top10Keys[i], top10Keys[ni]] = [top10Keys[ni], top10Keys[i]];
+    renderTop10();
+  }
+
+  document.getElementById('clearTop10Btn').addEventListener('click', () => {
+    top10Keys=[]; renderPool(document.getElementById('poolSearch').value); renderTop10();
+  });
+
+  document.getElementById('saveTop10Btn').addEventListener('click', async () => {
+    const btn = document.getElementById('saveTop10Btn');
+    btn.textContent='Saving...'; btn.disabled=true;
+    try {
+      const res  = await fetch('/api/top10',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({top10:top10Keys})});
+      const data = await res.json();
+      showFlash(data.success?'✅ Top 10 saved!':(data.error||'Failed.'), data.success);
+    } catch(e) { showFlash('Something went wrong.',false); }
+    btn.textContent='💾 Save Top 10'; btn.disabled=false;
+  });
+
+
+  // ══════════════════════════════════════════════
+  //  TAB 3: EDIT
+  // ══════════════════════════════════════════════
+  let editLoaded=false, allMovies=[];
+
+  async function loadEdit() {
+    editLoaded=true;
+    const res  = await fetch('/api/all_movies');
+    const data = await res.json();
+    allMovies  = data.movies||[];
+    renderEdit('');
+  }
+
+  function renderEdit(filter) {
+    const el=document.getElementById('editList'); const fl=filter.toLowerCase();
+    const filtered=allMovies.filter(m=>!fl||m.title.toLowerCase().includes(fl));
+    if (!filtered.length) { el.innerHTML='<div style="color:var(--dim-white);font-size:.83rem;padding:12px;">No movies found.</div>'; return; }
+    el.innerHTML=filtered.map((m,i)=>{
+      const scoreVal = m.my_score !== null && m.my_score !== undefined ? m.my_score : '';
+      return `<div class="edit-item">
+        <div class="edit-header" onclick="toggleEdit(this)">
+          <div><div class="eh-title">${m.title} (${m.year||'?'})</div>
+          <div class="eh-meta">${m.genre||''} ${m.my_score!=null?'· Score: '+m.my_score+'/10':''} ${m.watched?'· Watched':'· Unwatched'}</div></div>
+          <span class="eh-arrow">▼</span>
+        </div>
+        <div class="edit-body" data-title="${m.title}" data-year="${m.year||''}">
+          <div class="watched-toggle" style="margin-bottom:14px;">
+            <input type="checkbox" id="ew-${i}" ${m.watched?'checked':''} onchange="updateWatched(this,${i})">
+            <label for="ew-${i}">Watched</label>
+          </div>
+          <div id="escore-section-${i}" style="${m.watched?'':'display:none;'}">
+            <div class="form-label" style="margin-bottom:8px;">My Score</div>
+            <div class="score-row">
+              ${[1,2,3,4,5,6,7,8,9,10].map(n=>`<button class="score-btn ${scoreVal==n?'active':''}" onclick="setEditScore(this,${i},${n})">${n}</button>`).join('')}
+            </div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="saveEdit(${i})" style="margin-top:4px;">💾 Save</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  function toggleEdit(header) {
+    const body=header.nextElementSibling;
+    const open=body.classList.contains('open');
+    document.querySelectorAll('.edit-header').forEach(h=>h.classList.remove('open'));
+    document.querySelectorAll('.edit-body').forEach(b=>b.classList.remove('open'));
+    if(!open){header.classList.add('open');body.classList.add('open');}
+  }
+  function updateWatched(cb,idx) {
+    document.getElementById(`escore-section-${idx}`).style.display=cb.checked?'block':'none';
+  }
+  function setEditScore(btn,idx,score) {
+    btn.closest('.score-row').querySelectorAll('.score-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+
+  async function saveEdit(idx) {
+    const body=document.querySelectorAll('.edit-body')[idx];
+    const title=body.dataset.title; const year=body.dataset.year;
+    const watched=body.querySelector('input[type="checkbox"]').checked;
+    const scoreBtn=body.querySelector('.score-btn.active');
+    const my_score=scoreBtn?parseInt(scoreBtn.textContent):null;
+    try {
+      const res=await fetch('/api/edit_movie',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,year:year||null,watched,my_score})});
+      const data=await res.json();
+      if(data.success){
+        showFlash(`✅ "${title}" updated!`,true);
+        // update local cache
+        const m=allMovies.find(x=>x.title===title&&String(x.year||'')===String(year||''));
+        if(m){m.watched=watched;m.my_score=my_score;}
+        renderEdit(document.getElementById('editSearch').value);
+      } else {showFlash(data.error||'Failed.',false);}
+    } catch(e){showFlash('Something went wrong.',false);}
+  }
+
+  document.getElementById('editSearch').addEventListener('input', e => { if(editLoaded) renderEdit(e.target.value); });
 </script>
 {% endblock %}
