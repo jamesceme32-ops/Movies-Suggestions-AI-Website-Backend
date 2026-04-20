@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}Loading — JZ's Cinematch{% endblock %}
+
+{% block head %}
+<style>
+  .fetch-wrap { max-width:640px; margin:80px auto 0; text-align:center; }
+  .fetch-title { font-family:'Space Grotesk',sans-serif; font-size:1.5rem; font-weight:700; margin-bottom:8px; }
+  .fetch-sub { font-family:'Inter',sans-serif; font-size:.9rem; color:var(--dim-white); margin-bottom:40px; line-height:1.6; }
+  .parse-stats { display:flex; justify-content:center; gap:16px; flex-wrap:wrap; margin-bottom:36px; }
+  .progress-track { background:rgba(13,31,60,.8); border:1px solid var(--panel-border); border-radius:8px; height:12px; overflow:hidden; margin-bottom:12px; }
+  .progress-fill { height:100%; background:linear-gradient(90deg,var(--cyan-dim),var(--cyan)); border-radius:8px; transition:width .4s ease; width:0%; box-shadow:0 0 12px rgba(64,200,240,.5); }
+  .progress-label { font-family:'Inter',sans-serif; font-size:.85rem; color:var(--dim-white); margin-bottom:24px; }
+  .progress-label strong { color:var(--cyan); }
+  .fetch-stats { display:flex; justify-content:center; gap:20px; flex-wrap:wrap; margin-bottom:32px; font-family:'Inter',sans-serif; font-size:.82rem; color:var(--dim-white); }
+  .fetch-stat strong { color:var(--gold); }
+  .spinner { display:inline-block; width:40px; height:40px; border:3px solid var(--panel-border); border-top-color:var(--cyan); border-radius:50%; animation:spin .8s linear infinite; margin-bottom:20px; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .done-icon { font-size:2.5rem; margin-bottom:16px; display:none; }
+  .warning-note { font-family:'Inter',sans-serif; font-size:.8rem; color:var(--gold); background:rgba(240,192,64,.08); border:1px solid rgba(240,192,64,.3); border-radius:8px; padding:12px 18px; margin-top:16px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="fetch-wrap">
+  <div class="spinner" id="spinner"></div>
+  <div class="done-icon" id="done-icon">🎬</div>
+
+  <h2 class="fetch-title">An AI-Powered Movie Matcher</h2>
+  <p class="fetch-sub">Movies based on IMDb reviews, JZ's and Your Preferences, Genre, Actors, etc.</p>
+
+  <div class="parse-stats">
+    <div class="stat-chip">Total: <strong>{{ total }}</strong></div>
+    <div class="stat-chip">Watched: <strong>{{ watched }}</strong></div>
+    <div class="stat-chip">JZ Reviewed: <strong>{{ rated }}</strong></div>
+  </div>
+
+  <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  <p class="progress-label" id="progress-label">Starting...</p>
+
+  <div class="fetch-stats">
+    <div class="fetch-stat">⚡ From cache: <strong id="stat-cache">0</strong></div>
+    <div class="fetch-stat">🌐 Fetched: <strong id="stat-api">0</strong></div>
+    <div class="fetch-stat">✗ Failed: <strong id="stat-fail">0</strong></div>
+  </div>
+
+  <div id="continue-btn" style="display:none;margin-bottom:24px;"></div>
+
+  {% if not omdb_configured %}
+  <div class="warning-note">
+    ⚠️ OMDB_API_KEY is not set in Railway — ratings and cast cannot be fetched. Add it to your environment variables.
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const importMode = {{ 'true' if import_mode else 'false' }};
+
+  fetch('/fetch/start', { method:'POST' });
+
+  const fill    = document.getElementById('progress-fill');
+  const lbl     = document.getElementById('progress-label');
+  const cCache  = document.getElementById('stat-cache');
+  const cApi    = document.getElementById('stat-api');
+  const cFail   = document.getElementById('stat-fail');
+  const contBtn = document.getElementById('continue-btn');
+  const spinner = document.getElementById('spinner');
+  const doneIco = document.getElementById('done-icon');
+
+  function poll() {
+    fetch('/fetch/progress').then(r=>r.json()).then(data => {
+      const pct = data.total>0 ? (data.done/data.total*100) : 0;
+      fill.style.width = pct.toFixed(1)+'%';
+      lbl.innerHTML = `<strong>${data.done}</strong> / ${data.total} movies processed`;
+      if (data.stats) {
+        cCache.textContent = data.stats.cached  || 0;
+        cApi.textContent   = data.stats.fetched || 0;
+        cFail.textContent  = data.stats.failed  || 0;
+      }
+      if (data.complete) {
+        fill.style.width = '100%';
+        lbl.innerHTML = `<strong>Done!</strong> ${data.total} movies processed.`;
+        spinner.style.display = 'none';
+        doneIco.style.display = 'block';
+        if (importMode) {
+          contBtn.innerHTML = '<a href="/import/finalize" class="btn btn-primary">◈ SAVE &amp; VIEW SUGGESTIONS</a>';
+        } else {
+          contBtn.innerHTML = '<a href="/suggest" class="btn btn-primary">◈ VIEW SUGGESTIONS</a>';
+        }
+        contBtn.style.display = 'block';
+      } else {
+        setTimeout(poll, 800);
+      }
+    }).catch(() => setTimeout(poll, 2000));
+  }
+  setTimeout(poll, 600);
+</script>
+{% endblock %}

@@ -1,0 +1,347 @@
+{% extends "base.html" %}
+{% block title %}Suggestions — JZ's Cinematch{% endblock %}
+
+{% block head %}
+<style>
+  .suggest-header {
+    padding:40px 0 24px; display:flex; align-items:flex-end;
+    justify-content:space-between; flex-wrap:wrap; gap:16px;
+  }
+  .suggest-title { font-family:'Space Grotesk',sans-serif; font-size:1.6rem; font-weight:700; }
+  .suggest-title em { color:var(--gold); font-style:normal; }
+
+  .profile-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin-top:12px; }
+  .profile-item { background:rgba(7,13,31,.5); border:1px solid var(--panel-border); border-radius:8px; padding:12px 16px; }
+  .profile-item-label { font-size:.72rem; font-weight:500; color:var(--dim-white); letter-spacing:.06em; margin-bottom:4px; text-transform:uppercase; }
+  .profile-item-value { font-size:.9rem; font-weight:500; color:var(--cyan); }
+  .ml-badge { display:inline-block; font-size:.65rem; font-weight:600; padding:2px 8px; border-radius:4px; background:rgba(64,200,240,.1); color:var(--cyan); border:1px solid var(--cyan-dim); vertical-align:middle; margin-left:6px; }
+
+  .filter-section { margin-bottom:20px; }
+
+  /* Table column widths */
+  .col-title  { min-width:160px; max-width:240px; white-space:normal; word-break:break-word; }
+  .col-year   { min-width:52px; white-space:nowrap; }
+  .col-genre  { min-width:100px; white-space:normal; word-break:break-word; }
+  .col-dur    { min-width:70px; white-space:nowrap; }
+  .col-num    { min-width:56px; white-space:nowrap; text-align:right; }
+  .col-status { min-width:90px; white-space:nowrap; }
+  .col-links  { min-width:100px; white-space:nowrap; }
+
+  /* Expand / details row */
+  .expand-btn {
+    display:inline-flex; align-items:center; gap:4px;
+    font-size:.72rem; color:var(--dim-white); background:none; border:none;
+    cursor:pointer; padding:3px 0 0; font-family:'Inter',sans-serif;
+    transition:color .15s;
+  }
+  .expand-btn:hover { color:var(--cyan); }
+  .expand-btn .arrow { transition:transform .2s; display:inline-block; }
+  .expand-btn.open .arrow { transform:rotate(180deg); }
+
+  .details-row td {
+    background:rgba(7,13,31,.6);
+    border-bottom:1px solid var(--panel-border) !important;
+    padding:12px 16px !important;
+  }
+  .details-inner { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; font-size:.83rem; }
+  @media(max-width:700px){ .details-inner { grid-template-columns:1fr; } }
+  .details-inner strong { color:var(--cyan); font-weight:600; display:block; margin-bottom:3px; font-size:.72rem; text-transform:uppercase; letter-spacing:.06em; }
+  .details-inner p { color:var(--star-white); line-height:1.5; }
+
+  .form-actions { display:flex; align-items:center; gap:12px; margin-top:24px; flex-wrap:wrap; }
+  .no-results { text-align:center; padding:48px; font-size:.9rem; color:var(--dim-white); }
+  .no-results span { font-size:2rem; display:block; margin-bottom:12px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="suggest-header">
+  <h2 class="suggest-title">Movie <em>Suggestions</em></h2>
+  <div class="stats-row">
+    <div class="stat-chip">Total: <strong>{{ total }}</strong></div>
+    <div class="stat-chip">Watched: <strong>{{ watched }}</strong></div>
+    <div class="stat-chip">JZ Reviewed: <strong>{{ rated }}</strong></div>
+  </div>
+</div>
+
+<!-- Taste profile -->
+<div class="panel">
+  <div class="panel-title">YOUR TASTE PROFILE {% if profile.ml %}<span class="ml-badge">ML ACTIVE</span>{% endif %}</div>
+  {% if profile.rated > 0 %}
+  <div class="profile-grid">
+    <div class="profile-item"><div class="profile-item-label">Rated Movies</div><div class="profile-item-value">{{ profile.rated }}</div></div>
+    <div class="profile-item"><div class="profile-item-label">Top Genres</div><div class="profile-item-value">{{ profile.genres }}</div></div>
+    <div class="profile-item"><div class="profile-item-label">Favourite Eras</div><div class="profile-item-value">{{ profile.eras }}</div></div>
+    <div class="profile-item"><div class="profile-item-label">Preferred Duration</div><div class="profile-item-value">{{ profile.durs }}</div></div>
+    <div class="profile-item"><div class="profile-item-label">Bias vs IMDB</div><div class="profile-item-value">{{ profile.bias }}</div></div>
+  </div>
+  {% else %}
+  <p style="font-size:.85rem;color:var(--dim-white);">Rate some watched movies to build your profile.</p>
+  {% endif %}
+</div>
+
+<!-- Filters -->
+<div class="panel">
+  <div class="panel-title">FILTERS &amp; STYLE</div>
+  <form method="POST" action="/suggest">
+
+    <div class="filter-section">
+      <div class="form-label">Recommendation Style</div>
+      <div class="toggle-group" id="style-tabs">
+        {% for s in styles %}
+        <button type="button" class="toggle-btn {% if (form.style or 'Balanced')==s %}active-gold{% endif %}" data-val="{{ s }}">{{ s }}</button>
+        {% endfor %}
+      </div>
+      <input type="hidden" name="style" id="style-input" value="{{ form.style or 'Balanced' }}">
+    </div>
+
+    <div class="filter-section">
+      <div class="form-label">Show</div>
+      <div class="toggle-group" id="watched-tabs">
+        {% for w in ['Both','Unwatched only','Watched only'] %}
+        <button type="button" class="toggle-btn {% if (form.watched or 'Both')==w %}active{% endif %}" data-val="{{ w }}">{{ w }}</button>
+        {% endfor %}
+      </div>
+      <input type="hidden" name="watched" id="watched-input" value="{{ form.watched or 'Both' }}">
+    </div>
+
+    <div class="filter-section">
+      <div class="form-label">Genre <span style="font-weight:400;font-size:.78rem;color:var(--dim-white);">— select any (blank = auto)</span></div>
+      <div class="toggle-group" id="genre-group">
+        {% set sel_g = form.getlist('genre') %}
+        {% for g in all_genres %}
+        <button type="button" class="toggle-btn {% if g in sel_g %}active{% endif %}" data-val="{{ g }}">{{ g }}</button>
+        {% endfor %}
+      </div>
+      <div id="genre-inputs"></div>
+    </div>
+
+    <div class="filter-section">
+      <div class="form-label">Era <span style="font-weight:400;font-size:.78rem;color:var(--dim-white);">— select any (blank = auto)</span></div>
+      <div class="toggle-group" id="era-group">
+        {% set sel_e = form.getlist('era') %}
+        {% for yl in year_labels %}
+        <button type="button" class="toggle-btn {% if yl in sel_e %}active{% endif %}" data-val="{{ yl }}">{{ yl }}</button>
+        {% endfor %}
+      </div>
+      <div id="era-inputs"></div>
+    </div>
+
+    <div class="filter-section">
+      <div class="form-label">Duration <span style="font-weight:400;font-size:.78rem;color:var(--dim-white);">— select any (blank = auto)</span></div>
+      <div class="toggle-group" id="dur-group">
+        {% set sel_d = form.getlist('dur') %}
+        {% for dl in dur_labels %}
+        <button type="button" class="toggle-btn {% if dl in sel_d %}active{% endif %}" data-val="{{ dl }}">{{ dl }}</button>
+        {% endfor %}
+      </div>
+      <div id="dur-inputs"></div>
+    </div>
+
+    <div class="filter-section" style="max-width:380px;">
+      <label class="form-label">Actor / Director Filter</label>
+      <input type="text" name="actor" placeholder="Tom Hanks, Steven Spielberg, Johansson, etc." value="{{ form.actor or '' }}">
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">◈ GET SUGGESTIONS</button>
+      <button type="button" class="btn btn-secondary btn-sm" id="clear-btn">Clear filters</button>
+      <a href="/top" class="btn btn-secondary btn-sm">⭐ JZ's Top Movies</a>
+    </div>
+  </form>
+</div>
+
+<!-- Results -->
+{% if results is defined %}
+<div class="panel">
+  <div class="panel-title">RESULTS</div>
+  {% if results %}
+  <p class="results-count">Showing <strong>{{ results|length }}</strong> movies</p>
+  <div class="table-wrap">
+    <table id="results-table">
+      <thead>
+        <tr>
+          <th class="sortable" data-col="0">Title <span class="sort-arrow">↕</span></th>
+          <th class="sortable" data-col="1">Year <span class="sort-arrow">↕</span></th>
+          <th class="sortable" data-col="2">Genre <span class="sort-arrow">↕</span></th>
+          <th class="sortable" data-col="3">Duration <span class="sort-arrow">↕</span></th>
+          <th class="sortable" data-col="4">IMDB <span class="sort-arrow">↕</span></th>
+          <th class="sortable th-tip" data-col="5">
+            Prediction Score <span class="sort-arrow">↕</span>
+            <span class="tip-icon">ⓘ</span>
+            <div class="tip-box">What we predict you'd personally rate this movie, based on your taste profile and past ratings.</div>
+          </th>
+          <th class="sortable th-tip" data-col="6">
+            Taste % <span class="sort-arrow">↕</span>
+            <span class="tip-icon">ⓘ</span>
+            <div class="tip-box">How well this movie matches your preferred genres, eras, and duration — 100% = perfect fit.</div>
+          </th>
+          <th class="sortable th-tip" data-col="7">
+            Comp. Score <span class="sort-arrow">↕</span>
+            <span class="tip-icon">ⓘ</span>
+            <div class="tip-box">The overall ranking score combining IMDB rating, Taste %, and Prediction Score, weighted by your chosen Recommendation Style.</div>
+          </th>
+          <th class="sortable" data-col="8">Status <span class="sort-arrow">↕</span></th>
+          <th>Links</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in results %}
+        <tr class="result-row" id="row-{{ loop.index0 }}">
+          <td class="col-title">
+            <div>{{ m.title }}</div>
+            {% if m.plot or m.director or m.actors %}
+            <button class="expand-btn" data-idx="{{ loop.index0 }}">
+              <span class="arrow">▼</span> Details
+            </button>
+            {% endif %}
+          </td>
+          <td class="col-year score-dim">{{ m.year or '—' }}</td>
+          <td class="col-genre">{{ m.genre or '—' }}</td>
+          <td class="col-dur score-dim">{{ m.duration or '—' }}</td>
+          <td class="col-num score-gold">{{ m.imdb or '—' }}</td>
+          <td class="col-num score-cyan">{{ m.predicted or '—' }}</td>
+          <td class="col-num score-dim">{{ m.taste }}%</td>
+          <td class="col-num score-gold">{{ m.score }}</td>
+          <td class="col-status">
+            {% if m.watched %}
+            <span class="badge badge-watched">seen{% if m.my_score %} · {{ m.my_score }}/10{% endif %}</span>
+            {% else %}
+            <span class="badge badge-unwatched">unseen</span>
+            {% endif %}
+          </td>
+          <td class="col-links">
+            <div class="links">
+              {% if m.imdb_url %}<a class="link-imdb" href="{{ m.imdb_url }}" target="_blank" rel="noopener">IMDb</a>{% endif %}
+              <a class="link-google" href="{{ m.google_url }}" target="_blank" rel="noopener">Google</a>
+            </div>
+          </td>
+        </tr>
+        <tr class="details-row" id="details-{{ loop.index0 }}" style="display:none">
+          <td colspan="10">
+            <div class="details-inner">
+              <div>
+                <strong>Plot</strong>
+                <p>{{ m.plot or 'Not available.' }}</p>
+              </div>
+              <div>
+                <strong>Director</strong>
+                <p>{{ m.director or '—' }}</p>
+              </div>
+              <div>
+                <strong>Cast</strong>
+                <p>{{ m.actors or '—' }}</p>
+              </div>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="no-results"><span>🎬</span>No movies matched — try loosening the filters.</div>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Single-select toggles
+  function single(groupId, inputId, cls) {
+    document.querySelectorAll(`#${groupId} .toggle-btn`).forEach(b => {
+      b.addEventListener('click', () => {
+        document.querySelectorAll(`#${groupId} .toggle-btn`).forEach(x => x.classList.remove('active','active-gold'));
+        b.classList.add(cls);
+        document.getElementById(inputId).value = b.dataset.val;
+      });
+    });
+  }
+  single('style-tabs','style-input','active-gold');
+  single('watched-tabs','watched-input','active');
+
+  // Multi-select toggles
+  function multi(groupId, containerId, name) {
+    const c = document.getElementById(containerId);
+    const sync = () => {
+      c.innerHTML = '';
+      document.querySelectorAll(`#${groupId} .toggle-btn.active`).forEach(b => {
+        const i = document.createElement('input');
+        i.type = 'hidden'; i.name = name; i.value = b.dataset.val; c.appendChild(i);
+      });
+    };
+    document.querySelectorAll(`#${groupId} .toggle-btn`).forEach(b => {
+      b.addEventListener('click', () => { b.classList.toggle('active'); sync(); });
+    });
+    sync();
+  }
+  multi('genre-group','genre-inputs','genre');
+  multi('era-group','era-inputs','era');
+  multi('dur-group','dur-inputs','dur');
+
+  // Clear
+  document.getElementById('clear-btn').addEventListener('click', () => {
+    document.querySelectorAll('#style-tabs .toggle-btn').forEach(b => {
+      b.classList.remove('active','active-gold');
+      if (b.dataset.val==='Balanced') b.classList.add('active-gold');
+    });
+    document.getElementById('style-input').value = 'Balanced';
+    document.querySelectorAll('#watched-tabs .toggle-btn').forEach(b => {
+      b.classList.remove('active');
+      if (b.dataset.val==='Both') b.classList.add('active');
+    });
+    document.getElementById('watched-input').value = 'Both';
+    ['genre-group','era-group','dur-group'].forEach(id =>
+      document.querySelectorAll(`#${id} .toggle-btn`).forEach(b => b.classList.remove('active')));
+    ['genre-inputs','era-inputs','dur-inputs'].forEach(id =>
+      document.getElementById(id).innerHTML = '');
+    document.querySelector('input[name="actor"]').value = '';
+  });
+
+  // Expand details rows
+  document.querySelectorAll('.expand-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = btn.dataset.idx;
+      const row = document.getElementById(`details-${idx}`);
+      const open = row.style.display !== 'none';
+      row.style.display = open ? 'none' : 'table-row';
+      btn.classList.toggle('open', !open);
+    });
+  });
+
+  // Sort
+  const table = document.getElementById('results-table');
+  if (table) {
+    let lastCol = -1, lastAsc = false;
+    table.querySelectorAll('th.sortable').forEach(th => {
+      th.addEventListener('click', e => {
+        if (e.target.closest('.th-tip .tip-box')) return;
+        const col = parseInt(th.dataset.col);
+        const asc = lastCol===col ? !lastAsc : false;
+        lastCol=col; lastAsc=asc;
+        table.querySelectorAll('th').forEach(h => h.classList.remove('sorted'));
+        th.classList.add('sorted');
+        const arrow = th.querySelector('.sort-arrow');
+        if (arrow) arrow.textContent = asc ? '↑' : '↓';
+        const tbody = table.querySelector('tbody');
+        // Collect pairs (result-row + details-row)
+        const resultRows = Array.from(tbody.querySelectorAll('.result-row'));
+        resultRows.sort((a, b) => {
+          const av = a.cells[col]?.textContent.trim() || '';
+          const bv = b.cells[col]?.textContent.trim() || '';
+          const an = parseFloat(av), bn = parseFloat(bv);
+          if (!isNaN(an) && !isNaN(bn)) return asc ? an-bn : bn-an;
+          return asc ? av.localeCompare(bv) : bv.localeCompare(av);
+        });
+        resultRows.forEach(r => {
+          const idx  = r.id.split('-')[1];
+          const dRow = document.getElementById(`details-${idx}`);
+          tbody.appendChild(r);
+          if (dRow) tbody.appendChild(dRow);
+        });
+      });
+    });
+  }
+</script>
+{% endblock %}

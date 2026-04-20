@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Login — JZ's Cinematch{% endblock %}
+
+{% block head %}
+<style>
+  .login-wrap { max-width:400px; margin:100px auto 0; }
+  .login-title { font-family:'Space Grotesk',sans-serif; font-size:1.4rem; font-weight:700; margin-bottom:6px; }
+  .login-sub { font-size:.85rem; color:var(--dim-white); margin-bottom:28px; }
+  .alert-error { padding:10px 14px; border-radius:8px; background:rgba(224,80,80,.12); border:1px solid rgba(224,80,80,.35); color:#fca5a5; font-size:.85rem; margin-bottom:16px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="login-wrap">
+  <div class="panel">
+    <h2 class="login-title">🔒 Admin Login</h2>
+    <p class="login-sub">Enter the password to add movies.</p>
+    {% if error %}<div class="alert-error">{{ error }}</div>{% endif %}
+    <form method="POST">
+      <div style="margin-bottom:16px;">
+        <label class="form-label">Password</label>
+        <input type="password" name="password" autofocus placeholder="Enter password">
+      </div>
+      <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;">◈ LOGIN</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

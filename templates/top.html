@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block title %}JZ's Top Movies — Cinematch{% endblock %}
+
+{% block head %}
+<style>
+  .top-header { padding:40px 0 24px; display:flex; align-items:flex-end; justify-content:space-between; flex-wrap:wrap; gap:16px; }
+  .top-title { font-family:'Space Grotesk',sans-serif; font-size:1.6rem; font-weight:700; }
+  .top-title em { color:var(--gold); font-style:normal; }
+  .col-rank   { width:40px; color:var(--dim-white); text-align:center; font-family:'Share Tech Mono',monospace; }
+  .col-title  { min-width:160px; max-width:260px; white-space:normal; word-break:break-word; }
+  .col-year   { min-width:52px; white-space:nowrap; }
+  .col-genre  { min-width:100px; white-space:normal; }
+  .col-dur    { min-width:70px; white-space:nowrap; }
+  .col-num    { min-width:60px; white-space:nowrap; text-align:right; }
+  .col-links  { min-width:100px; }
+
+  .expand-btn { display:inline-flex; align-items:center; gap:4px; font-size:.72rem; color:var(--dim-white); background:none; border:none; cursor:pointer; padding:3px 0 0; font-family:'Inter',sans-serif; transition:color .15s; }
+  .expand-btn:hover { color:var(--cyan); }
+  .expand-btn .arrow { transition:transform .2s; display:inline-block; }
+  .expand-btn.open .arrow { transform:rotate(180deg); }
+  .details-row td { background:rgba(7,13,31,.6); border-bottom:1px solid var(--panel-border) !important; padding:12px 16px !important; }
+  .details-inner { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; font-size:.83rem; }
+  @media(max-width:700px){ .details-inner { grid-template-columns:1fr; } }
+  .details-inner strong { color:var(--cyan); font-weight:600; display:block; margin-bottom:3px; font-size:.72rem; text-transform:uppercase; letter-spacing:.06em; }
+  .details-inner p { color:var(--star-white); line-height:1.5; }
+
+  th.sortable { cursor:pointer; }
+  th.sortable:hover { color:var(--gold); }
+  th .sort-arrow { margin-left:3px; opacity:.4; }
+  th.sorted .sort-arrow { opacity:1; color:var(--gold); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="top-header">
+  <div>
+    <h2 class="top-title">JZ's <em>Top Movies</em></h2>
+    <p style="font-size:.85rem;color:var(--dim-white);margin-top:6px;">{{ total_rated }} reviewed movies, ranked by personal score</p>
+  </div>
+  <a href="/suggest" class="btn btn-secondary btn-sm">← Back to Suggestions</a>
+</div>
+
+<div class="panel">
+  {% if movies %}
+  <div class="table-wrap">
+    <table id="top-table">
+      <thead>
+        <tr>
+          <th class="col-rank">#</th>
+          <th class="sortable" data-col="1">Title <span class="sort-arrow">↕</span></th>
+          <th class="sortable" data-col="2">Year <span class="sort-arrow">↕</span></th>
+          <th class="sortable" data-col="3">Genre <span class="sort-arrow">↕</span></th>
+          <th class="sortable" data-col="4">Duration <span class="sort-arrow">↕</span></th>
+          <th class="sortable" data-col="5">My Score <span class="sort-arrow">↕</span></th>
+          <th class="sortable" data-col="6">IMDB <span class="sort-arrow">↕</span></th>
+          <th>Links</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in movies %}
+        <tr class="result-row" id="row-{{ loop.index0 }}">
+          <td class="col-rank">{{ loop.index }}</td>
+          <td class="col-title">
+            <div>{{ m.title }}</div>
+            {% if m.plot or m.director or m.actors %}
+            <button class="expand-btn" data-idx="{{ loop.index0 }}">
+              <span class="arrow">▼</span> Details
+            </button>
+            {% endif %}
+          </td>
+          <td class="col-year score-dim">{{ m.year or '—' }}</td>
+          <td class="col-genre">{{ m.genre or '—' }}</td>
+          <td class="col-dur score-dim">{{ m.duration or '—' }}</td>
+          <td class="col-num">
+            <span class="score-gold" style="font-size:1rem;font-weight:700;">{{ m.my_score }}</span>
+            <span class="score-dim" style="font-size:.75rem;">/10</span>
+          </td>
+          <td class="col-num score-gold">{{ m.imdb or '—' }}</td>
+          <td class="col-links">
+            <div class="links">
+              {% if m.imdb_url %}<a class="link-imdb" href="{{ m.imdb_url }}" target="_blank" rel="noopener">IMDb</a>{% endif %}
+              <a class="link-google" href="{{ m.google_url }}" target="_blank" rel="noopener">Google</a>
+            </div>
+          </td>
+        </tr>
+        <tr class="details-row" id="details-{{ loop.index0 }}" style="display:none">
+          <td colspan="8">
+            <div class="details-inner">
+              <div><strong>Plot</strong><p>{{ m.plot or 'Not available.' }}</p></div>
+              <div><strong>Director</strong><p>{{ m.director or '—' }}</p></div>
+              <div><strong>Cast</strong><p>{{ m.actors or '—' }}</p></div>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div style="text-align:center;padding:48px;color:var(--dim-white);font-size:.9rem;">
+    <span style="font-size:2rem;display:block;margin-bottom:12px;">🎬</span>No reviewed movies yet.
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.querySelectorAll('.expand-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const row = document.getElementById(`details-${btn.dataset.idx}`);
+      const open = row.style.display !== 'none';
+      row.style.display = open ? 'none' : 'table-row';
+      btn.classList.toggle('open', !open);
+    });
+  });
+
+  const table = document.getElementById('top-table');
+  if (table) {
+    let lastCol=-1, lastAsc=false;
+    table.querySelectorAll('th.sortable').forEach(th => {
+      th.addEventListener('click', () => {
+        const col=parseInt(th.dataset.col);
+        const asc=lastCol===col?!lastAsc:false;
+        lastCol=col; lastAsc=asc;
+        table.querySelectorAll('th').forEach(h=>h.classList.remove('sorted'));
+        th.classList.add('sorted');
+        const arr=th.querySelector('.sort-arrow'); if(arr) arr.textContent=asc?'↑':'↓';
+        const tbody=table.querySelector('tbody');
+        Array.from(tbody.querySelectorAll('.result-row')).sort((a,b)=>{
+          const av=a.cells[col]?.textContent.trim()||'';
+          const bv=b.cells[col]?.textContent.trim()||'';
+          const an=parseFloat(av),bn=parseFloat(bv);
+          if(!isNaN(an)&&!isNaN(bn)) return asc?an-bn:bn-an;
+          return asc?av.localeCompare(bv):bv.localeCompare(av);
+        }).forEach(r=>{
+          const dr=document.getElementById(`details-${r.id.split('-')[1]}`);
+          tbody.appendChild(r); if(dr) tbody.appendChild(dr);
+        });
+      });
+    });
+  }
+</script>
+{% endblock %}
