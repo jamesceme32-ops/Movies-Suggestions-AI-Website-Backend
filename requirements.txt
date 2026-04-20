@@ -1,7 +1,0 @@
-flask>=3.0
-pandas>=2.0
-numpy>=1.26
-beautifulsoup4>=4.12
-requests>=2.31
-scikit-learn>=1.4
-gunicorn>=21.0
