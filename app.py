@@ -56,7 +56,7 @@ DUR_LABELS = ["<1h", "1-1.5h", "1.5-2h", "2-2.5h", "2.5-3h", "3h+"]
 STYLES = {
     "Trust IMDB": (0.70, 0.20, 0.10),
     "Balanced":   (0.40, 0.35, 0.25),
-    "JZ's Profile":   (0.15, 0.45, 0.40),
+    "My Taste":   (0.15, 0.45, 0.40),
 }
 
 def movie_key(title, year):
