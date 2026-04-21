@@ -980,13 +980,18 @@ def admin_debug():
 
 
 
+@app.route("/admin/refresh-omdb", methods=["POST"])
 @admin_required
 def admin_refresh_omdb():
-    if REFRESH_STATUS["running"]:
-        return jsonify({"error": "Refresh already running"}), 400
-    REFRESH_STATUS["complete"] = False
-    threading.Thread(target=_refresh_omdb_background, daemon=True).start()
-    return jsonify({"ok": True})
+    try:
+        if REFRESH_STATUS.get("running"):
+            return jsonify({"error": "Refresh already running"}), 400
+        REFRESH_STATUS["complete"] = False
+        REFRESH_STATUS["error"]    = ""
+        threading.Thread(target=_refresh_omdb_background, daemon=True).start()
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"error": str(e), "type": type(e).__name__}), 500
 
 
 @app.route("/admin/refresh-omdb/progress")
