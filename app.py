@@ -1004,6 +1004,7 @@ def admin_test_omdb():
 
 
 
+@app.route("/admin/refresh-omdb", methods=["POST"])
 @admin_required
 def admin_refresh_omdb():
     try:
