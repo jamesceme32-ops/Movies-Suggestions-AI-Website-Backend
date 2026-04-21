@@ -12,28 +12,37 @@
   .profile-item-label { font-size:.72rem; font-weight:500; color:var(--dim-white); letter-spacing:.06em; margin-bottom:4px; text-transform:uppercase; }
   .profile-item-value { font-size:.9rem; font-weight:500; color:var(--cyan); }
   .ml-badge { display:inline-block; font-size:.65rem; font-weight:600; padding:2px 8px; border-radius:4px; background:rgba(64,200,240,.1); color:var(--cyan); border:1px solid var(--cyan-dim); vertical-align:middle; margin-left:6px; }
-
   .filter-section { margin-bottom:20px; }
 
-  /* Table columns */
-  .col-title  { min-width:160px; max-width:220px; white-space:normal; overflow-wrap:break-word; word-break:normal; }
-  .col-year   { min-width:52px;  white-space:nowrap; }
-  .col-genre  { min-width:110px; max-width:160px; white-space:normal; overflow-wrap:break-word; word-break:normal; }
-  .col-dur    { min-width:70px;  white-space:nowrap; }
-  .col-num    { min-width:60px;  white-space:nowrap; text-align:right; }
-  .col-status { min-width:95px;  white-space:nowrap; }
-  .col-links  { min-width:105px; white-space:nowrap; }
+  /* Table */
+  table { table-layout:auto; }
 
-  /* Expand */
-  .expand-btn { display:inline-flex; align-items:center; gap:4px; font-size:.72rem; color:var(--dim-white); background:none; border:none; cursor:pointer; padding:3px 0 0; font-family:'Inter',sans-serif; transition:color .15s; }
-  .expand-btn:hover { color:var(--cyan); }
-  .expand-btn .arrow { transition:transform .2s; display:inline-block; }
-  .expand-btn.open .arrow { transform:rotate(180deg); }
-  .details-row td { background:rgba(7,13,31,.6); border-bottom:1px solid var(--panel-border) !important; padding:12px 16px !important; }
-  .details-inner { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; font-size:.83rem; }
+  /* Column definitions */
+  .col-title  { min-width:160px; max-width:220px; white-space:normal; overflow-wrap:break-word; word-break:normal; }
+  .col-year   { min-width:50px;  white-space:nowrap; }
+  .col-genre  { min-width:110px; max-width:160px; white-space:normal; overflow-wrap:break-word; word-break:normal; }
+  .col-dur    { min-width:65px;  white-space:nowrap; }
+  /* Wrapping numeric/score columns — allow header to wrap but keep value nowrap */
+  .col-num    { min-width:58px; max-width:90px; white-space:normal; text-align:right; }
+  .col-status { min-width:90px;  white-space:nowrap; }
+  .col-links  { min-width:100px; white-space:nowrap; }
+
+  /* Allow long headers to wrap */
+  thead th { white-space:normal !important; vertical-align:bottom; }
+  thead th.nowrap { white-space:nowrap !important; }
+
+  /* Clickable title */
+  .title-btn { background:none; border:none; color:var(--star-white); font-family:'Inter',sans-serif; font-size:.88rem; font-weight:500; cursor:pointer; text-align:left; padding:0; line-height:1.4; }
+  .title-btn:hover { color:var(--cyan); text-decoration:underline; }
+  .title-btn::after { content:' ▾'; font-size:.65rem; color:var(--dim-white); }
+  .title-btn.open::after { content:' ▴'; color:var(--cyan); }
+
+  /* Details row */
+  .details-row td { background:rgba(7,13,31,.65); border-bottom:1px solid var(--panel-border) !important; padding:14px 16px !important; }
+  .details-inner { display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; font-size:.83rem; }
   @media(max-width:700px){ .details-inner { grid-template-columns:1fr; } }
-  .details-inner strong { color:var(--cyan); font-weight:600; display:block; margin-bottom:3px; font-size:.72rem; text-transform:uppercase; letter-spacing:.06em; }
-  .details-inner p { color:var(--star-white); line-height:1.5; }
+  .details-inner strong { color:var(--cyan); font-weight:600; display:block; margin-bottom:4px; font-size:.72rem; text-transform:uppercase; letter-spacing:.06em; }
+  .details-inner p { color:var(--star-white); line-height:1.55; }
 
   .form-actions { display:flex; align-items:center; gap:12px; margin-top:24px; flex-wrap:wrap; }
   .no-results { text-align:center; padding:48px; font-size:.9rem; color:var(--dim-white); }
@@ -46,7 +55,6 @@
   <h2 class="suggest-title">AI Movie <em>Recommendation</em></h2>
   <div class="stats-row">
     <div class="stat-chip">Total: <strong>{{ total }}</strong></div>
-    <div class="stat-chip">Watched: <strong>{{ watched }}</strong></div>
     <div class="stat-chip">JZ Reviewed: <strong>{{ rated }}</strong></div>
   </div>
 </div>
@@ -133,15 +141,15 @@
 <div class="panel">
   <div class="panel-title">RESULTS</div>
   {% if results %}
-  <p class="results-count">Showing <strong>{{ results|length }}</strong> movies</p>
+  <p class="results-count">Showing <strong>{{ results|length }}</strong> movies — click any title for details</p>
   <div class="table-wrap">
     <table id="results-table">
       <thead>
         <tr>
-          <th class="sortable" data-col="0">Title <span class="sort-arrow">↕</span></th>
-          <th class="sortable" data-col="1">Year <span class="sort-arrow">↕</span></th>
-          <th class="sortable" data-col="2">Genre <span class="sort-arrow">↕</span></th>
-          <th class="sortable" data-col="3">Duration <span class="sort-arrow">↕</span></th>
+          <th class="sortable nowrap" data-col="0">Title <span class="sort-arrow">↕</span></th>
+          <th class="sortable nowrap" data-col="1">Year <span class="sort-arrow">↕</span></th>
+          <th class="sortable nowrap" data-col="2">Genre <span class="sort-arrow">↕</span></th>
+          <th class="sortable nowrap" data-col="3">Duration <span class="sort-arrow">↕</span></th>
           <th class="sortable" data-col="4">IMDb Rating <span class="sort-arrow">↕</span></th>
           <th class="sortable th-tip" data-col="5">
             Prediction Score <span class="sort-arrow">↕</span>
@@ -154,22 +162,19 @@
             <div class="tip-box">How well this movie matches your preferred genres, eras, and duration — 100% = perfect fit.</div>
           </th>
           <th class="sortable th-tip" data-col="7">
-            Comp. Score <span class="sort-arrow">↕</span>
+            Composite Score <span class="sort-arrow">↕</span>
             <span class="tip-icon">ⓘ</span>
             <div class="tip-box">Overall ranking combining IMDb rating, Taste %, and Prediction Score weighted by your chosen Recommendation Style.</div>
           </th>
-          <th class="sortable" data-col="8">Status <span class="sort-arrow">↕</span></th>
-          <th>Links</th>
+          <th class="sortable nowrap" data-col="8">Status <span class="sort-arrow">↕</span></th>
+          <th class="nowrap">Links</th>
         </tr>
       </thead>
       <tbody>
         {% for m in results %}
         <tr class="result-row" id="row-{{ loop.index0 }}">
           <td class="col-title">
-            <div>{{ m.title }}</div>
-            {% if m.plot or m.director or m.actors %}
-            <button class="expand-btn" data-idx="{{ loop.index0 }}"><span class="arrow">▼</span> Details</button>
-            {% endif %}
+            <button class="title-btn" data-idx="{{ loop.index0 }}">{{ m.title }}</button>
           </td>
           <td class="col-year score-dim">{{ m.year or '—' }}</td>
           <td class="col-genre">{{ m.genre or '—' }}</td>
@@ -242,9 +247,11 @@
     document.querySelector('input[name="actor"]').value='';
   });
 
-  document.querySelectorAll('.expand-btn').forEach(btn=>{
+  // Title click → expand details row
+  document.querySelectorAll('.title-btn').forEach(btn=>{
     btn.addEventListener('click',()=>{
-      const row=document.getElementById(`details-${btn.dataset.idx}`);
+      const idx=btn.dataset.idx;
+      const row=document.getElementById(`details-${idx}`);
       const open=row.style.display!=='none';
       row.style.display=open?'none':'table-row';
       btn.classList.toggle('open',!open);
@@ -257,8 +264,7 @@
     table.querySelectorAll('th.sortable').forEach(th=>{
       th.addEventListener('click',e=>{
         if(e.target.closest('.tip-box')) return;
-        const col=parseInt(th.dataset.col),asc=lc===col?!la:false;
-        lc=col;la=asc;
+        const col=parseInt(th.dataset.col),asc=lc===col?!la:false; lc=col; la=asc;
         table.querySelectorAll('th').forEach(h=>h.classList.remove('sorted'));
         th.classList.add('sorted');
         const arr=th.querySelector('.sort-arrow');if(arr)arr.textContent=asc?'↑':'↓';

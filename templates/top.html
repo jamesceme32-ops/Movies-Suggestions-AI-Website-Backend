@@ -6,6 +6,13 @@
   .top-header { padding:40px 0 24px; display:flex; align-items:flex-end; justify-content:space-between; flex-wrap:wrap; gap:16px; }
   .top-title { font-family:'Space Grotesk',sans-serif; font-size:1.6rem; font-weight:700; }
   .top-title em { color:var(--gold); font-style:normal; }
+  table { table-layout:auto; }
+  thead th { white-space:normal !important; vertical-align:bottom; }
+  thead th.nowrap { white-space:nowrap !important; }
+  .title-btn { background:none; border:none; color:var(--star-white); font-family:'Inter',sans-serif; font-size:.88rem; font-weight:500; cursor:pointer; text-align:left; padding:0; line-height:1.4; }
+  .title-btn:hover { color:var(--cyan); text-decoration:underline; }
+  .title-btn::after { content:' ▾'; font-size:.65rem; color:var(--dim-white); }
+  .title-btn.open::after { content:' ▴'; color:var(--cyan); }
 
   /* Top 10 row colors */
   tr.rank-1 td { background:rgba(240,192,64,.13); border-left:3px solid #f0c040; }
@@ -49,7 +56,7 @@
 <div class="top-header">
   <div>
     <h2 class="top-title">JZ's <em>Top Movies</em></h2>
-    <p style="font-size:.85rem;color:var(--dim-white);margin-top:6px;">{{ total_rated }} reviewed movies — top 10 highlighted</p>
+    <p style="font-size:.85rem;color:var(--dim-white);margin-top:6px;">{{ total_rated }} reviewed movies — click any title for details</p>
   </div>
   <a href="/suggest" class="btn btn-secondary btn-sm">← Back to Recommendations</a>
 </div>
@@ -60,14 +67,14 @@
     <table id="top-table">
       <thead>
         <tr>
-          <th style="width:44px;">#</th>
-          <th class="sortable" data-col="1">Title <span class="sort-arrow">↕</span></th>
-          <th class="sortable" data-col="2">Year <span class="sort-arrow">↕</span></th>
-          <th class="sortable" data-col="3">Genre <span class="sort-arrow">↕</span></th>
-          <th class="sortable" data-col="4">Duration <span class="sort-arrow">↕</span></th>
+          <th style="width:44px;" class="nowrap">#</th>
+          <th class="sortable nowrap" data-col="1">Title <span class="sort-arrow">↕</span></th>
+          <th class="sortable nowrap" data-col="2">Year <span class="sort-arrow">↕</span></th>
+          <th class="sortable nowrap" data-col="3">Genre <span class="sort-arrow">↕</span></th>
+          <th class="sortable nowrap" data-col="4">Duration <span class="sort-arrow">↕</span></th>
           <th class="sortable" data-col="5">My Score <span class="sort-arrow">↕</span></th>
           <th class="sortable" data-col="6">IMDb Rating <span class="sort-arrow">↕</span></th>
-          <th>Links</th>
+          <th class="nowrap">Links</th>
         </tr>
       </thead>
       <tbody>
@@ -98,10 +105,7 @@
               </span>
             </td>
             <td class="col-title">
-              <div>{{ m.title }}</div>
-              {% if m.plot or m.director or m.actors %}
-              <button class="expand-btn" data-idx="{{ loop.index0 }}"><span class="arrow">▼</span> Details</button>
-              {% endif %}
+              <button class="title-btn" data-idx="{{ loop.index0 }}">{{ m.title }}</button>
             </td>
             <td class="col-year score-dim">{{ m.year or '—' }}</td>
             <td class="col-genre">{{ m.genre or '—' }}</td>
@@ -139,7 +143,7 @@
 
 {% block scripts %}
 <script>
-  document.querySelectorAll('.expand-btn').forEach(btn=>{
+  document.querySelectorAll('.title-btn').forEach(btn=>{
     btn.addEventListener('click',()=>{
       const row=document.getElementById(`details-${btn.dataset.idx}`);
       const open=row.style.display!=='none';

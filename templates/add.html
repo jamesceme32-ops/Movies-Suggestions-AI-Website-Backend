@@ -400,7 +400,25 @@
           <div class="eh-meta">${m.genre||''} ${m.my_score!=null?'· Score: '+m.my_score+'/10':''} ${m.watched?'· Watched':'· Unwatched'}</div></div>
           <span class="eh-arrow">▼</span>
         </div>
-        <div class="edit-body" data-title="${m.title}" data-year="${m.year||''}">
+        <div class="edit-body" data-orig-title="${m.title}" data-orig-year="${m.year||''}">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+            <div>
+              <div class="form-label">Title</div>
+              <input type="text" class="ef-title" value="${m.title}" placeholder="Movie title">
+            </div>
+            <div>
+              <div class="form-label">Year</div>
+              <input type="text" class="ef-year" value="${m.year||''}" placeholder="1984" maxlength="4" style="width:100%;">
+            </div>
+            <div>
+              <div class="form-label">Genre</div>
+              <input type="text" class="ef-genre" value="${m.genre||''}" placeholder="Drama/Thriller">
+            </div>
+            <div>
+              <div class="form-label">Duration</div>
+              <input type="text" class="ef-duration" value="${m.duration||''}" placeholder="2h 15m">
+            </div>
+          </div>
           <div class="watched-toggle" style="margin-bottom:14px;">
             <input type="checkbox" id="ew-${i}" ${m.watched?'checked':''} onchange="updateWatched(this,${i})">
             <label for="ew-${i}">Watched</label>
@@ -411,7 +429,7 @@
               ${[1,2,3,4,5,6,7,8,9,10].map(n=>`<button class="score-btn ${scoreVal==n?'active':''}" onclick="setEditScore(this,${i},${n})">${n}</button>`).join('')}
             </div>
           </div>
-          <button class="btn btn-primary btn-sm" onclick="saveEdit(${i})" style="margin-top:4px;">💾 Save</button>
+          <button class="btn btn-primary btn-sm" onclick="saveEdit(this)" style="margin-top:4px;">💾 Save Changes</button>
         </div>
       </div>`;
     }).join('');
@@ -432,20 +450,26 @@
     btn.classList.add('active');
   }
 
-  async function saveEdit(idx) {
-    const body=document.querySelectorAll('.edit-body')[idx];
-    const title=body.dataset.title; const year=body.dataset.year;
-    const watched=body.querySelector('input[type="checkbox"]').checked;
+  async function saveEdit(btn) {
+    const body=btn.closest('.edit-body');
+    const orig_title=body.dataset.origTitle; const orig_year=body.dataset.origYear;
+    const title   = body.querySelector('.ef-title').value.trim();
+    const year    = body.querySelector('.ef-year').value.trim();
+    const genre   = body.querySelector('.ef-genre').value.trim();
+    const duration= body.querySelector('.ef-duration').value.trim();
+    const watched =body.querySelector('input[type="checkbox"]').checked;
     const scoreBtn=body.querySelector('.score-btn.active');
     const my_score=scoreBtn?parseInt(scoreBtn.textContent):null;
+    if (!title) { showFlash('Title cannot be empty.', false); return; }
     try {
-      const res=await fetch('/api/edit_movie',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,year:year||null,watched,my_score})});
+      const res=await fetch('/api/edit_movie',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({orig_title,orig_year:orig_year||null,title,year:year||null,genre,duration,watched,my_score})});
       const data=await res.json();
       if(data.success){
         showFlash(`✅ "${title}" updated!`,true);
         // update local cache
-        const m=allMovies.find(x=>x.title===title&&String(x.year||'')===String(year||''));
-        if(m){m.watched=watched;m.my_score=my_score;}
+        const m=allMovies.find(x=>x.title===orig_title&&String(x.year||'')===String(orig_year||''));
+        if(m){m.title=title;m.year=year?parseInt(year):null;m.genre=genre;m.duration=duration;m.watched=watched;m.my_score=my_score;}
         renderEdit(document.getElementById('editSearch').value);
       } else {showFlash(data.error||'Failed.',false);}
     } catch(e){showFlash('Something went wrong.',false);}
