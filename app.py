@@ -23,6 +23,7 @@ except ImportError:
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "jzmovies-dev-key-change-in-prod")
 OMDB_API_KEY   = os.environ.get("OMDB_API_KEY", "")
+TMDB_API_KEY   = os.environ.get("TMDB_API_KEY", "")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "cinematch")
 
 STORE      = {}
@@ -80,8 +81,10 @@ def movies_list_to_df(movies):
             "My Score":       m.get("my_score"),
             "IMDB Rating":    m.get("imdb_rating"),
             "Actors":         m.get("actors", ""),
+            "Cast":           m.get("cast", ""),
             "Director":       m.get("director", ""),
             "Plot":           m.get("plot", ""),
+            "Poster URL":     m.get("poster_url", ""),
             "IMDB URL":       m.get("imdb_url", ""),
             "Google URL":     m.get("google_url", ""),
         })
@@ -103,8 +106,10 @@ def df_to_movies_list(df):
             "my_score":    r.get("My Score") if pd.notna(r.get("My Score", None)) else None,
             "imdb_rating": r.get("IMDB Rating") if pd.notna(r.get("IMDB Rating", None)) else None,
             "actors":      r.get("Actors", ""),
+            "cast":        r.get("Cast", ""),
             "director":    r.get("Director", ""),
             "plot":        r.get("Plot", ""),
+            "poster_url":  r.get("Poster URL", ""),
             "imdb_url":    r.get("IMDB URL", ""),
             "google_url":  r.get("Google URL", ""),
         })
@@ -301,8 +306,41 @@ def omdb_details(imdb_id):
     return {}
 
 
-# ══════════════════════════════════════════════
-#  BACKGROUND FETCH
+def tmdb_cast_and_poster(imdb_id: str) -> dict:
+    """
+    Fetch top-6 cast and poster URL from TMDb using an IMDb ID.
+    Returns {"cast": "Actor1, Actor2, ...", "poster_url": "https://..."} or {}.
+    """
+    if not TMDB_API_KEY or not imdb_id:
+        return {}
+    try:
+        r = requests.get(
+            f"https://api.themoviedb.org/3/find/{imdb_id}",
+            params={"api_key": TMDB_API_KEY, "external_source": "imdb_id"},
+            timeout=8
+        )
+        results = r.json().get("movie_results", [])
+        if not results:
+            return {}
+        tmdb_id      = results[0]["id"]
+        poster_path  = results[0].get("poster_path", "")
+
+        cr = requests.get(
+            f"https://api.themoviedb.org/3/movie/{tmdb_id}/credits",
+            params={"api_key": TMDB_API_KEY},
+            timeout=8
+        )
+        cast_list = cr.json().get("cast", [])
+        top6 = ", ".join(c["name"] for c in cast_list[:6])
+
+        return {
+            "cast":       top6,
+            "poster_url": f"https://image.tmdb.org/t/p/w300{poster_path}" if poster_path else "",
+        }
+    except Exception:
+        return {}
+
+
 # ══════════════════════════════════════════════
 
 def fetch_omdb_background(session_id):
@@ -489,8 +527,10 @@ def row_to_dict(r):
         "watched":    r.get("Watched",False),
         "my_score":   r.get("My Score",""),
         "actors":     r.get("Actors",""),
+        "cast":       r.get("Cast",""),
         "director":   r.get("Director",""),
         "plot":       r.get("Plot",""),
+        "poster_url": r.get("Poster URL",""),
         "imdb_url":   r.get("IMDB URL",""),
         "google_url": r.get("Google URL",""),
     }
@@ -576,6 +616,8 @@ def top_movies():
         yr = d["year"]
         k = movie_key(d["title"], yr)
         d["top10_rank"] = top10_rank.get(k)
+        d["cast"]       = r.get("Cast", "")
+        d["poster_url"] = r.get("Poster URL", "")
         movies.append(d)
     top10  = sorted([m for m in movies if m["top10_rank"]], key=lambda x: x["top10_rank"])
     others = [m for m in movies if not m["top10_rank"]]
@@ -715,6 +757,7 @@ def api_movie_details():
         "google_url": f"https://www.google.com/search?q={quote_plus(title+' '+year+' movie')}",
         "actors": top6, "director": data.get("Director",""),
         "plot": data.get("Plot",""), "poster": data.get("Poster",""),
+        "imdb_id_val": data.get("imdbID",""),
     })
 
 
@@ -744,6 +787,7 @@ def api_save_movie():
             "imdb_rating": _safe_float(data.get("imdb_rating")),
             "imdb_id": data.get("imdb_id",""), "imdb_url": data.get("imdb_url",""),
             "google_url": data.get("google_url",""), "actors": data.get("actors",""),
+            "cast": data.get("cast",""), "poster_url": data.get("poster_url",""),
             "director": data.get("director",""), "plot": data.get("plot",""), "source":"manual",
         })
         db2 = dict(db); db2["movies"] = movies
@@ -912,6 +956,13 @@ def _refresh_omdb_background():
                     m["genre"] = data["genre"]
                 if not m.get("duration") and data.get("duration"):
                     m["duration"] = data["duration"]
+
+            # ── TMDb: cast + poster ──────────────────────────────────────────
+            imdb_id_final = _extract_imdb_id(m.get("imdb_url", ""))
+            if imdb_id_final and (not m.get("cast") or not m.get("poster_url")):
+                tmdb = tmdb_cast_and_poster(imdb_id_final)
+                if tmdb.get("cast"):       m["cast"]       = tmdb["cast"]
+                if tmdb.get("poster_url"): m["poster_url"] = tmdb["poster_url"]
 
             REFRESH_STATUS["done"]       = i + 1
             REFRESH_STATUS["from_cache"] = from_cache
