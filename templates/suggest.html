@@ -60,10 +60,9 @@
 </div>
 
 <div class="panel">
-  <div class="panel-title">YOUR TASTE PROFILE {% if profile.ml %}<span class="ml-badge">ML ACTIVE</span>{% endif %}</div>
+  <div class="panel-title">JZ'S TASTE PROFILE {% if profile.ml %}<span class="ml-badge">ML ACTIVE</span>{% endif %}</div>
   {% if profile.rated > 0 %}
   <div class="profile-grid">
-    <div class="profile-item"><div class="profile-item-label">Rated Movies</div><div class="profile-item-value">{{ profile.rated }}</div></div>
     <div class="profile-item"><div class="profile-item-label">Top Genres</div><div class="profile-item-value">{{ profile.genres }}</div></div>
     <div class="profile-item"><div class="profile-item-label">Favourite Eras</div><div class="profile-item-value">{{ profile.eras }}</div></div>
     <div class="profile-item"><div class="profile-item-label">Preferred Duration</div><div class="profile-item-value">{{ profile.durs }}</div></div>
