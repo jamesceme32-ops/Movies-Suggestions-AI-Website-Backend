@@ -819,41 +819,74 @@ REFRESH_STATUS = {"running": False, "done": 0, "total": 0,
                   "from_cache": 0, "from_api": 0, "complete": False, "error": ""}
 
 
+def _needs_refresh(m):
+    """Return True if this movie is missing usable IMDb data."""
+    r = m.get("imdb_rating")
+    # Missing if None, empty string, 0, or the string "N/A"
+    return r is None or r == "" or r == 0 or str(r).strip() in ("", "N/A", "0", "0.0")
+
 def _refresh_omdb_background():
     global REFRESH_STATUS
     try:
-        # Always load fresh from R2 (bypass app cache)
         db     = r2_storage.load_movies_db()
         movies = db.get("movies", [])
         cache  = _load_cache()
 
-        # Find movies missing imdb_rating
-        missing = [m for m in movies if m.get("imdb_rating") is None
-                   and _extract_imdb_id(m.get("imdb_url", ""))]
+        missing = [m for m in movies if _needs_refresh(m)]
 
-        REFRESH_STATUS.update({"running": True, "done": 0, "total": len(missing),
-                               "from_cache": 0, "from_api": 0, "complete": False, "error": ""})
+        REFRESH_STATUS.update({
+            "running": True, "done": 0, "total": len(missing),
+            "from_cache": 0, "from_api": 0, "complete": False, "error": ""
+        })
 
         from_cache = 0
         from_api   = 0
 
         for i, m in enumerate(missing):
-            imdb_id = _extract_imdb_id(m.get("imdb_url", ""))
+            imdb_id  = _extract_imdb_id(m.get("imdb_url", ""))
+            data     = None
 
-            # Check local /tmp cache first
-            if imdb_id in cache and cache[imdb_id].get("IMDB Rating") is not None:
-                data = cache[imdb_id]
-                from_cache += 1
-            else:
-                # Hit the API
-                data = _fetch_one(imdb_id)
-                if data:
-                    cache[imdb_id] = data
+            # ── Step 1: try local /tmp cache by IMDB id ─────────────────────
+            if imdb_id and imdb_id in cache:
+                cached = cache[imdb_id]
+                if cached.get("IMDB Rating") not in (None, "", "N/A"):
+                    data = cached
+                    from_cache += 1
+
+            # ── Step 2: hit API by IMDB id ───────────────────────────────────
+            if data is None and imdb_id and OMDB_API_KEY:
+                fetched = _fetch_one(imdb_id)
+                if fetched and fetched.get("IMDB Rating") not in (None, "", "N/A"):
+                    cache[imdb_id] = fetched
                     _save_cache(cache)
+                    data = fetched
                     from_api += 1
 
-            if data and data.get("IMDB Rating") is not None:
-                m["imdb_rating"] = data["IMDB Rating"]
+            # ── Step 3: fallback — search by title + year ────────────────────
+            if data is None and OMDB_API_KEY:
+                title = m.get("title", "")
+                year  = str(m.get("year", "")) if m.get("year") else ""
+                results = omdb_search(title, year)
+                if results:
+                    # Pick closest match (first result or exact title match)
+                    best = next(
+                        (r for r in results if r.get("Title","").lower() == title.lower()),
+                        results[0]
+                    )
+                    found_id = best.get("imdbID", "")
+                    if found_id:
+                        fetched = _fetch_one(found_id)
+                        if fetched and fetched.get("IMDB Rating") not in (None, "", "N/A"):
+                            cache[found_id] = fetched
+                            _save_cache(cache)
+                            # Also store the correct IMDB URL back into the movie
+                            m["imdb_url"]  = f"https://www.imdb.com/title/{found_id}/"
+                            data = fetched
+                            from_api += 1
+
+            # ── Apply results ────────────────────────────────────────────────
+            if data:
+                m["imdb_rating"] = data.get("IMDB Rating")
                 m["actors"]      = data.get("Actors", "")
                 m["director"]    = data.get("Director", "")
                 m["plot"]        = data.get("Plot", "")
@@ -862,11 +895,11 @@ def _refresh_omdb_background():
             REFRESH_STATUS["from_cache"] = from_cache
             REFRESH_STATUS["from_api"]   = from_api
 
-        # Save updated movies_db and cache to R2
+        # ── Persist everything back to R2 ────────────────────────────────────
         db["movies"] = movies
         r2_storage.save_movies_db(db)
         r2_storage.save_cache(cache)
-        invalidate_db()  # force next load to pull fresh data
+        invalidate_db()
 
         REFRESH_STATUS["complete"] = True
         REFRESH_STATUS["running"]  = False
@@ -877,7 +910,47 @@ def _refresh_omdb_background():
         REFRESH_STATUS["complete"] = True
 
 
-@app.route("/admin/refresh-omdb", methods=["POST"])
+@app.route("/admin/debug")
+@admin_required
+def admin_debug():
+    db     = r2_storage.load_movies_db()
+    movies = db.get("movies", [])
+    cache  = _load_cache()
+
+    total   = len(movies)
+    sample  = movies[:5]
+
+    # Count by imdb_rating type
+    counts = {"none": 0, "empty_str": 0, "zero": 0, "has_value": 0, "other": 0}
+    for m in movies:
+        r = m.get("imdb_rating")
+        if r is None:             counts["none"] += 1
+        elif r == "":             counts["empty_str"] += 1
+        elif r == 0 or r == 0.0: counts["zero"] += 1
+        elif _safe_float(str(r)): counts["has_value"] += 1
+        else:                     counts["other"] += 1
+
+    has_imdb_url  = sum(1 for m in movies if m.get("imdb_url",""))
+    cache_entries = len(cache)
+    omdb_set      = bool(OMDB_API_KEY)
+
+    return jsonify({
+        "total_movies":    total,
+        "omdb_key_set":    omdb_set,
+        "cache_entries":   cache_entries,
+        "has_imdb_url":    has_imdb_url,
+        "imdb_rating_breakdown": counts,
+        "sample_movies": [
+            {"title": m.get("title"), "year": m.get("year"),
+             "imdb_rating": m.get("imdb_rating"),
+             "imdb_rating_type": type(m.get("imdb_rating")).__name__,
+             "imdb_url": m.get("imdb_url","")[:60]}
+            for m in sample
+        ]
+    })
+
+
+
 @admin_required
 def admin_refresh_omdb():
     if REFRESH_STATUS["running"]:
