@@ -304,6 +304,19 @@ def omdb_by_title(title: str, year=None) -> dict:
     except Exception: pass
     return []
 
+
+def omdb_search(query, year=""):
+    """Search OMDb by title — used by the Add Movie search tab."""
+    if not OMDB_API_KEY: return []
+    try:
+        params = {"apikey": OMDB_API_KEY, "s": query, "type": "movie"}
+        if year: params["y"] = year
+        r = requests.get("https://www.omdbapi.com/", params=params, timeout=8)
+        d = r.json()
+        if d.get("Response") == "True": return d.get("Search", [])
+    except Exception: pass
+    return []
+
 def omdb_details(imdb_id):
     if not OMDB_API_KEY: return {}
     try:
@@ -769,6 +782,8 @@ def api_movie_details():
         "actors": top6, "director": data.get("Director",""),
         "plot": data.get("Plot",""), "poster": data.get("Poster",""),
         "imdb_id_val": data.get("imdbID",""),
+        "poster_url": "",  # will be filled by TMDb refresh
+        "cast": "",        # will be filled by TMDb refresh
     })
 
 
@@ -815,11 +830,12 @@ def api_edit_movie():
         db = get_db(); movies = db.get("movies",[])[:]
         # Find by original title+year
         orig_title = data.get("orig_title","").lower().strip()
-        orig_year  = str(data.get("orig_year",""))
+        orig_year  = str(data.get("orig_year") or "")
         updated = False
         for m in movies:
+            m_year = str(m.get("year") or "")
             if (m.get("title","").lower().strip() == orig_title and
-                    str(m.get("year","")) == orig_year):
+                    m_year == orig_year):
                 if "my_score"  in data: m["my_score"]  = data["my_score"]
                 if "watched"   in data: m["watched"]   = bool(data["watched"])
                 if "genre"     in data: m["genre"]     = data["genre"].replace(", ","/")
