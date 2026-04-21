@@ -811,6 +811,88 @@ def save_top10():
     except Exception as e: return jsonify({"success": False, "error": str(e)})
 
 
+# ══════════════════════════════════════════════
+#  ADMIN — REFRESH OMDB DATA
+# ══════════════════════════════════════════════
+
+REFRESH_STATUS = {"running": False, "done": 0, "total": 0,
+                  "from_cache": 0, "from_api": 0, "complete": False, "error": ""}
+
+
+def _refresh_omdb_background():
+    global REFRESH_STATUS
+    try:
+        # Always load fresh from R2 (bypass app cache)
+        db     = r2_storage.load_movies_db()
+        movies = db.get("movies", [])
+        cache  = _load_cache()
+
+        # Find movies missing imdb_rating
+        missing = [m for m in movies if m.get("imdb_rating") is None
+                   and _extract_imdb_id(m.get("imdb_url", ""))]
+
+        REFRESH_STATUS.update({"running": True, "done": 0, "total": len(missing),
+                               "from_cache": 0, "from_api": 0, "complete": False, "error": ""})
+
+        from_cache = 0
+        from_api   = 0
+
+        for i, m in enumerate(missing):
+            imdb_id = _extract_imdb_id(m.get("imdb_url", ""))
+
+            # Check local /tmp cache first
+            if imdb_id in cache and cache[imdb_id].get("IMDB Rating") is not None:
+                data = cache[imdb_id]
+                from_cache += 1
+            else:
+                # Hit the API
+                data = _fetch_one(imdb_id)
+                if data:
+                    cache[imdb_id] = data
+                    _save_cache(cache)
+                    from_api += 1
+
+            if data and data.get("IMDB Rating") is not None:
+                m["imdb_rating"] = data["IMDB Rating"]
+                m["actors"]      = data.get("Actors", "")
+                m["director"]    = data.get("Director", "")
+                m["plot"]        = data.get("Plot", "")
+
+            REFRESH_STATUS["done"]       = i + 1
+            REFRESH_STATUS["from_cache"] = from_cache
+            REFRESH_STATUS["from_api"]   = from_api
+
+        # Save updated movies_db and cache to R2
+        db["movies"] = movies
+        r2_storage.save_movies_db(db)
+        r2_storage.save_cache(cache)
+        invalidate_db()  # force next load to pull fresh data
+
+        REFRESH_STATUS["complete"] = True
+        REFRESH_STATUS["running"]  = False
+
+    except Exception as e:
+        REFRESH_STATUS["error"]    = str(e)
+        REFRESH_STATUS["running"]  = False
+        REFRESH_STATUS["complete"] = True
+
+
+@app.route("/admin/refresh-omdb", methods=["POST"])
+@admin_required
+def admin_refresh_omdb():
+    if REFRESH_STATUS["running"]:
+        return jsonify({"error": "Refresh already running"}), 400
+    REFRESH_STATUS["complete"] = False
+    threading.Thread(target=_refresh_omdb_background, daemon=True).start()
+    return jsonify({"ok": True})
+
+
+@app.route("/admin/refresh-omdb/progress")
+@admin_required
+def admin_refresh_progress():
+    return jsonify(REFRESH_STATUS)
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
