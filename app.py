@@ -251,7 +251,35 @@ def _fetch_one(imdb_id):
     except Exception: pass
     return {}
 
-def omdb_search(query, year=""):
+def omdb_by_title(title: str, year=None) -> dict:
+    """
+    Fetch full movie details in ONE API call using title + year.
+    Uses ?t= endpoint which returns complete details directly.
+    """
+    if not OMDB_API_KEY: return {}
+    try:
+        params = {"apikey": OMDB_API_KEY, "t": title, "plot": "short", "type": "movie"}
+        if year: params["y"] = str(year)
+        r = requests.get("https://www.omdbapi.com/", params=params, timeout=8)
+        d = r.json()
+        if d.get("Response") == "True":
+            actors = d.get("Actors", "")
+            top6   = ", ".join(a.strip() for a in actors.split(",")[:6])
+            imdb_id = d.get("imdbID", "")
+            return {
+                "IMDB Rating": _safe_float(d.get("imdbRating")),
+                "Actors":      top6,
+                "Director":    d.get("Director", ""),
+                "Plot":        d.get("Plot", ""),
+                "imdb_id":     imdb_id,
+                "imdb_url":    f"https://www.imdb.com/title/{imdb_id}/" if imdb_id else "",
+                "genre":       d.get("Genre", "").replace(", ", "/"),
+                "duration":    d.get("Runtime", ""),
+            }
+    except Exception: pass
+    return {}
+
+
     if not OMDB_API_KEY: return []
     try:
         params = {"apikey": OMDB_API_KEY, "s": query, "type": "movie"}
@@ -820,9 +848,7 @@ REFRESH_STATUS = {"running": False, "done": 0, "total": 0,
 
 
 def _needs_refresh(m):
-    """Return True if this movie is missing usable IMDb data."""
     r = m.get("imdb_rating")
-    # Missing if None, empty string, 0, or the string "N/A"
     return r is None or r == "" or r == 0 or str(r).strip() in ("", "N/A", "0", "0.0")
 
 def _refresh_omdb_background():
@@ -843,59 +869,62 @@ def _refresh_omdb_background():
         from_api   = 0
 
         for i, m in enumerate(missing):
-            imdb_id  = _extract_imdb_id(m.get("imdb_url", ""))
-            data     = None
+            imdb_id = _extract_imdb_id(m.get("imdb_url", ""))
+            data    = None
 
-            # ── Step 1: try local /tmp cache by IMDB id ─────────────────────
+            # ── Try cache by IMDB id ─────────────────────────────────────────
             if imdb_id and imdb_id in cache:
                 cached = cache[imdb_id]
                 if cached.get("IMDB Rating") not in (None, "", "N/A"):
                     data = cached
                     from_cache += 1
 
-            # ── Step 2: hit API by IMDB id ───────────────────────────────────
-            if data is None and imdb_id and OMDB_API_KEY:
-                fetched = _fetch_one(imdb_id)
+            # ── Try cache by title key (tt-less) ────────────────────────────
+            if data is None:
+                title_key = f"title:{m.get('title','').lower()}:{m.get('year','')}"
+                if title_key in cache and cache[title_key].get("IMDB Rating") not in (None, "", "N/A"):
+                    data = cache[title_key]
+                    from_cache += 1
+
+            # ── API: direct title+year lookup (1 call, full details) ─────────
+            if data is None and OMDB_API_KEY:
+                fetched = omdb_by_title(m.get("title", ""), m.get("year"))
                 if fetched and fetched.get("IMDB Rating") not in (None, "", "N/A"):
-                    cache[imdb_id] = fetched
+                    # Store under both the imdb_id key and a title key
+                    fid = fetched.get("imdb_id", "")
+                    if fid:
+                        cache[fid] = fetched
+                    cache[f"title:{m.get('title','').lower()}:{m.get('year','')}"] = fetched
                     _save_cache(cache)
                     data = fetched
                     from_api += 1
 
-            # ── Step 3: fallback — search by title + year ────────────────────
-            if data is None and OMDB_API_KEY:
-                title = m.get("title", "")
-                year  = str(m.get("year", "")) if m.get("year") else ""
-                results = omdb_search(title, year)
-                if results:
-                    # Pick closest match (first result or exact title match)
-                    best = next(
-                        (r for r in results if r.get("Title","").lower() == title.lower()),
-                        results[0]
-                    )
-                    found_id = best.get("imdbID", "")
-                    if found_id:
-                        fetched = _fetch_one(found_id)
-                        if fetched and fetched.get("IMDB Rating") not in (None, "", "N/A"):
-                            cache[found_id] = fetched
-                            _save_cache(cache)
-                            # Also store the correct IMDB URL back into the movie
-                            m["imdb_url"]  = f"https://www.imdb.com/title/{found_id}/"
-                            data = fetched
-                            from_api += 1
-
-            # ── Apply results ────────────────────────────────────────────────
+            # ── Apply to movie record ────────────────────────────────────────
             if data:
                 m["imdb_rating"] = data.get("IMDB Rating")
                 m["actors"]      = data.get("Actors", "")
                 m["director"]    = data.get("Director", "")
                 m["plot"]        = data.get("Plot", "")
+                if not m.get("imdb_url") and data.get("imdb_url"):
+                    m["imdb_url"] = data["imdb_url"]
+                # Also fill genre/duration if they were empty
+                if not m.get("genre") and data.get("genre"):
+                    m["genre"] = data["genre"]
+                if not m.get("duration") and data.get("duration"):
+                    m["duration"] = data["duration"]
 
             REFRESH_STATUS["done"]       = i + 1
             REFRESH_STATUS["from_cache"] = from_cache
             REFRESH_STATUS["from_api"]   = from_api
 
-        # ── Persist everything back to R2 ────────────────────────────────────
+            # Sync to R2 every 100 movies so progress is saved if it hits the daily limit
+            if (i + 1) % 100 == 0:
+                db["movies"] = movies
+                r2_storage.save_movies_db(db)
+                r2_storage.save_cache(cache)
+                invalidate_db()
+
+        # Final save
         db["movies"] = movies
         r2_storage.save_movies_db(db)
         r2_storage.save_cache(cache)
