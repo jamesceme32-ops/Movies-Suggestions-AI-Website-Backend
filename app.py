@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """JZ's Cinematch — Flask Web App"""
 
-import re, json, threading, uuid, os, datetime
+import re, json, threading, uuid, os, time, datetime
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.parse import quote_plus
@@ -29,6 +29,24 @@ STORE      = {}
 STORE_LOCK = threading.Lock()
 CACHE_PATH = Path("/tmp/omdb_cache.json")
 PROGRESS   = {}
+
+# ── App-level DB cache so we don't hit R2 on every page load ──────────────
+_DB_CACHE      = None
+_DB_CACHE_TIME = 0.0
+_DB_CACHE_TTL  = 120  # seconds
+
+
+def get_db() -> dict:
+    global _DB_CACHE, _DB_CACHE_TIME
+    if _DB_CACHE is None or time.time() - _DB_CACHE_TIME > _DB_CACHE_TTL:
+        _DB_CACHE      = r2_storage.load_movies_db()
+        _DB_CACHE_TIME = time.time()
+    return _DB_CACHE
+
+def invalidate_db():
+    global _DB_CACHE
+    _DB_CACHE = None
+
 
 YEAR_BINS   = [1900, 1960, 1970, 1980, 1990, 2000, 2010, 2020, 2030]
 YEAR_LABELS = ["1900-1960", "1961-1970", "1971-1980", "1981-1990",
@@ -176,6 +194,11 @@ def extract_genres(df):
                 if g and g != "nan": genres.add(g.title())
     return sorted(genres)
 
+def fmt_genre(genre_str):
+    """Add spaces around slashes for display: Crime/Drama → Crime / Drama"""
+    if not genre_str: return ""
+    return " / ".join(p.strip() for p in genre_str.split("/") if p.strip())
+
 
 # ══════════════════════════════════════════════
 #  OMDB
@@ -222,9 +245,9 @@ def _fetch_one(imdb_id):
         d = r.json()
         if d.get("Response") == "True":
             actors = d.get("Actors", "")
-            top8   = ", ".join(a.strip() for a in actors.split(",")[:8])
+            top6   = ", ".join(a.strip() for a in actors.split(",")[:6])
             return {"IMDB Rating": _safe_float(d.get("imdbRating")),
-                    "Actors": top8, "Director": d.get("Director",""), "Plot": d.get("Plot","")}
+                    "Actors": top6, "Director": d.get("Director",""), "Plot": d.get("Plot","")}
     except Exception: pass
     return {}
 
@@ -374,8 +397,9 @@ def score_and_filter(df, profile, predicted, style,
     if dur_override:   res = res[res["Duration Range"].isin(dur_override)]
     if person_filter and person_filter.strip():
         q = person_filter.strip().lower()
-        res = res[(res["Actors"].str.lower().str.contains(q, na=False)) |
-                  (res["Director"].str.lower().str.contains(q, na=False))]
+        actors_col   = res["Actors"].fillna("").str.lower()
+        director_col = res["Director"].fillna("").str.lower()
+        res = res[actors_col.str.contains(q, na=False) | director_col.str.contains(q, na=False)]
     if res.empty: return res
     w_imdb, w_taste, w_pred = STYLES.get(style, STYLES["Balanced"])
     imdb = res["IMDB Rating"].fillna(5.0)
@@ -405,7 +429,7 @@ def get_sid():
     return session["sid"]
 
 def load_store_from_db(sid):
-    db = r2_storage.load_movies_db()
+    db = get_db()
     if not db or not db.get("movies"): return False
     df = movies_list_to_df(db["movies"])
     df = engineer_features(df)
@@ -416,8 +440,32 @@ def load_store_from_db(sid):
     return True
 
 def get_df(sid): return STORE.get(sid, {}).get("df")
+
 def invalidate_store(sid):
     with STORE_LOCK: STORE.pop(sid, None)
+    invalidate_db()
+
+
+# ══════════════════════════════════════════════
+#  BUILD RESULT DICT (shared between suggest & top)
+# ══════════════════════════════════════════════
+
+def row_to_dict(r):
+    yr = r.get("Release Year")
+    return {
+        "title":      r.get("Title",""),
+        "year":       int(yr) if pd.notna(yr) and yr else None,
+        "genre":      fmt_genre(r.get("Genre","")),
+        "duration":   r.get("Movie Duration",""),
+        "imdb":       r.get("IMDB Rating",""),
+        "watched":    r.get("Watched",False),
+        "my_score":   r.get("My Score",""),
+        "actors":     r.get("Actors",""),
+        "director":   r.get("Director",""),
+        "plot":       r.get("Plot",""),
+        "imdb_url":   r.get("IMDB URL",""),
+        "google_url": r.get("Google URL",""),
+    }
 
 
 # ══════════════════════════════════════════════
@@ -430,8 +478,7 @@ def index():
     if r2_storage.movies_db_exists():
         load_store_from_db(sid)
         df = get_df(sid)
-        stats = {"total": len(df), "watched": int(df["Watched"].sum()),
-                 "rated": int(df["My Score"].notna().sum())} if df is not None else {}
+        stats = {"total": len(df), "rated": int(df["My Score"].notna().sum())} if df is not None else {}
         return render_template("index.html", has_db=True, stats=stats)
     return render_template("index.html", has_db=False)
 
@@ -457,7 +504,7 @@ def suggest():
     profile_summary = {
         "rated": profile.get("rated_count",0), "genres": top(profile.get("raw_genre",{})),
         "eras": top(profile.get("raw_era",{})), "durs": top(profile.get("raw_dur",{}),2),
-        "bias": (f"+{bias:.1f}" if bias>=0 else f"{bias:.1f}") + " vs IMDB",
+        "bias": (f"+{bias:.1f}" if bias>=0 else f"{bias:.1f}") + " vs IMDb",
         "ml": store["model"] is not None,
     }
     all_genres = extract_genres(df)
@@ -472,24 +519,17 @@ def suggest():
                                    person_filter=request.form.get("actor","").strip() or None,
                                    watched_filter=request.form.get("watched","Both"))
             for _, r in res.iterrows():
-                yr = r.get("Release Year")
-                results.append({
-                    "title": r.get("Title",""), "year": int(yr) if pd.notna(yr) and yr else None,
-                    "genre": r.get("Genre",""), "duration": r.get("Movie Duration",""),
-                    "imdb": r.get("IMDB Rating",""), "predicted": r.get("Predicted My Score",""),
-                    "taste": r.get("Taste Match %",""), "score": r.get("Composite Score",""),
-                    "watched": r.get("Watched",False), "my_score": r.get("My Score",""),
-                    "actors": r.get("Actors",""), "director": r.get("Director",""),
-                    "plot": r.get("Plot",""), "imdb_url": r.get("IMDB URL",""),
-                    "google_url": r.get("Google URL",""),
-                })
+                d = row_to_dict(r)
+                d["predicted"] = r.get("Predicted My Score","")
+                d["taste"]     = r.get("Taste Match %","")
+                d["score"]     = r.get("Composite Score","")
+                results.append(d)
         except Exception: pass
 
     return render_template("suggest.html", profile=profile_summary, year_labels=YEAR_LABELS,
                            dur_labels=DUR_LABELS, styles=list(STYLES.keys()),
                            all_genres=all_genres, results=results, total=len(df),
-                           watched=int(df["Watched"].sum()), rated=int(df["My Score"].notna().sum()),
-                           form=request.form)
+                           rated=int(df["My Score"].notna().sum()), form=request.form)
 
 
 @app.route("/top")
@@ -498,25 +538,17 @@ def top_movies():
     if sid not in STORE:
         if not load_store_from_db(sid): return redirect(url_for("index"))
     df = STORE[sid]["df"]
-    db = r2_storage.load_movies_db()
+    db = get_db()
     top10_keys = db.get("top10", [])
     top10_rank = {k: i+1 for i, k in enumerate(top10_keys)}
-
     rated = df[df["My Score"].notna() & df["Watched"]].sort_values("My Score", ascending=False)
     movies = []
     for _, r in rated.iterrows():
-        yr = r.get("Release Year")
-        yr_int = int(yr) if pd.notna(yr) and yr else None
-        k = movie_key(r.get("Title",""), yr_int)
-        movies.append({
-            "title": r.get("Title",""), "year": yr_int, "genre": r.get("Genre",""),
-            "duration": r.get("Movie Duration",""), "my_score": r.get("My Score",""),
-            "imdb": r.get("IMDB Rating",""), "actors": r.get("Actors",""),
-            "director": r.get("Director",""), "plot": r.get("Plot",""),
-            "imdb_url": r.get("IMDB URL",""), "google_url": r.get("Google URL",""),
-            "top10_rank": top10_rank.get(k),
-        })
-
+        d = row_to_dict(r)
+        yr = d["year"]
+        k = movie_key(d["title"], yr)
+        d["top10_rank"] = top10_rank.get(k)
+        movies.append(d)
     top10  = sorted([m for m in movies if m["top10_rank"]], key=lambda x: x["top10_rank"])
     others = [m for m in movies if not m["top10_rank"]]
     return render_template("top.html", movies=top10+others, total_rated=len(movies))
@@ -538,22 +570,17 @@ def do_import():
     message = None
     if request.method == "POST":
         file = request.files.get("bookmarks_file")
-        if not file or file.filename == "":
-            message = "No file selected."
-        elif not file.filename.lower().endswith((".html", ".htm")):
-            message = f"'{file.filename}' doesn't look like an HTML file."
+        if not file or file.filename == "":          message = "No file selected."
+        elif not file.filename.lower().endswith((".html",".htm")): message = f"'{file.filename}' doesn't look like an HTML file."
         else:
             file_bytes = file.read()
-            if b"<" not in file_bytes:
-                message = "File doesn't appear to be valid HTML."
+            if b"<" not in file_bytes: message = "File doesn't appear to be valid HTML."
             else:
-                sid = get_sid()
-                raw = parse_bookmarks(file_bytes)
-                df  = engineer_features(raw)
+                sid = get_sid(); raw = parse_bookmarks(file_bytes); df = engineer_features(raw)
                 with STORE_LOCK:
-                    STORE[sid] = {"df": df, "fetched": False, "profile": {},
-                                  "predicted": pd.Series(dtype=float), "model": None,
-                                  "scaler": None, "feat_cols": None, "import_mode": True}
+                    STORE[sid] = {"df":df,"fetched":False,"profile":{},
+                                  "predicted":pd.Series(dtype=float),"model":None,
+                                  "scaler":None,"feat_cols":None,"import_mode":True}
                 return render_template("fetch.html", total=len(df),
                                        watched=int(df["Watched"].sum()),
                                        rated=int(df["My Score"].notna().sum()),
@@ -567,7 +594,7 @@ def import_finalize():
     with STORE_LOCK: store = STORE.get(sid, {})
     if not store or not store.get("fetched"): return redirect(url_for("do_import"))
     db = {"movies": df_to_movies_list(store["df"]), "version": 1}
-    r2_storage.save_movies_db(db)
+    r2_storage.save_movies_db(db); invalidate_db()
     return redirect(url_for("index"))
 
 
@@ -618,7 +645,7 @@ def admin_logout():
 
 
 # ══════════════════════════════════════════════
-#  ADD / EDIT MOVIES
+#  ADD / EDIT
 # ══════════════════════════════════════════════
 
 @app.route("/add")
@@ -633,8 +660,10 @@ def add_movie():
 @admin_required
 def api_search_movie():
     q = request.args.get("q","").strip(); year = request.args.get("year","").strip()
-    if not q: return jsonify({"results":[], "error":"No query"})
-    return jsonify({"results": omdb_search(q, year)})
+    if not q: return jsonify({"results":[], "error":"No query provided"})
+    if not OMDB_API_KEY: return jsonify({"results":[], "error":"OMDB_API_KEY not configured in Railway environment variables."})
+    results = omdb_search(q, year)
+    return jsonify({"results": results})
 
 
 @app.route("/api/movie_details")
@@ -642,19 +671,21 @@ def api_search_movie():
 def api_movie_details():
     imdb_id = request.args.get("id","").strip()
     if not imdb_id: return jsonify({"error":"No ID"})
+    if not OMDB_API_KEY: return jsonify({"error":"OMDB_API_KEY not configured."})
     data = omdb_details(imdb_id)
-    if not data: return jsonify({"error":"Not found"})
+    if not data: return jsonify({"error":"Movie not found"})
     actors = data.get("Actors","")
-    top8   = ", ".join(a.strip() for a in actors.split(",")[:8])
+    top6   = ", ".join(a.strip() for a in actors.split(",")[:6])
     title  = data.get("Title",""); year = data.get("Year","")
     return jsonify({
-        "title": title, "year": year, "genre": data.get("Genre",""),
+        "title": title, "year": year,
+        "genre": data.get("Genre","").replace(", ","/"),
         "duration": data.get("Runtime",""),
         "imdb_id": data.get("imdbID",""),
         "imdb_rating": data.get("imdbRating",""),
         "imdb_url": f"https://www.imdb.com/title/{data.get('imdbID','')}/",
         "google_url": f"https://www.google.com/search?q={quote_plus(title+' '+year+' movie')}",
-        "actors": top8, "director": data.get("Director",""),
+        "actors": top6, "director": data.get("Director",""),
         "plot": data.get("Plot",""), "poster": data.get("Poster",""),
     })
 
@@ -664,7 +695,7 @@ def api_movie_details():
 def api_save_movie():
     try:
         data = request.get_json(); sid = get_sid()
-        db = r2_storage.load_movies_db(); movies = db.get("movies",[])
+        db = get_db(); movies = db.get("movies",[])[:]
         title_lower = data.get("title","").lower().strip()
         year_val    = data.get("year")
         for existing in movies:
@@ -685,9 +716,10 @@ def api_save_movie():
             "imdb_rating": _safe_float(data.get("imdb_rating")),
             "imdb_id": data.get("imdb_id",""), "imdb_url": data.get("imdb_url",""),
             "google_url": data.get("google_url",""), "actors": data.get("actors",""),
-            "director": data.get("director",""), "plot": data.get("plot",""), "source": "manual",
+            "director": data.get("director",""), "plot": data.get("plot",""), "source":"manual",
         })
-        db["movies"] = movies; r2_storage.save_movies_db(db); invalidate_store(sid)
+        db2 = dict(db); db2["movies"] = movies
+        r2_storage.save_movies_db(db2); invalidate_store(sid)
         return jsonify({"success": True})
     except Exception as e: return jsonify({"success": False, "error": str(e)})
 
@@ -697,20 +729,28 @@ def api_save_movie():
 def api_edit_movie():
     try:
         data = request.get_json(); sid = get_sid()
-        db = r2_storage.load_movies_db(); movies = db.get("movies",[])
-        title_lower = data.get("title","").lower().strip()
-        year_str    = str(data.get("year",""))
+        db = get_db(); movies = db.get("movies",[])[:]
+        # Find by original title+year
+        orig_title = data.get("orig_title","").lower().strip()
+        orig_year  = str(data.get("orig_year",""))
         updated = False
         for m in movies:
-            if (m.get("title","").lower().strip() == title_lower and
-                    str(m.get("year","")) == year_str):
+            if (m.get("title","").lower().strip() == orig_title and
+                    str(m.get("year","")) == orig_year):
                 if "my_score"  in data: m["my_score"]  = data["my_score"]
                 if "watched"   in data: m["watched"]   = bool(data["watched"])
-                if "genre"     in data: m["genre"]     = data["genre"]
+                if "genre"     in data: m["genre"]     = data["genre"].replace(", ","/")
                 if "duration"  in data: m["duration"]  = data["duration"]
+                if "title"     in data and data["title"].strip(): m["title"] = data["title"].strip()
+                if "year"      in data and data["year"]: m["year"] = int(data["year"]) if str(data["year"]).isdigit() else m["year"]
+                # Regenerate google_url if title/year changed
+                if "title" in data or "year" in data:
+                    t = m.get("title",""); y = str(m.get("year",""))
+                    m["google_url"] = f"https://www.google.com/search?q={quote_plus(t+' '+y+' movie')}"
                 updated = True; break
         if not updated: return jsonify({"success": False, "error": "Movie not found"})
-        db["movies"] = movies; r2_storage.save_movies_db(db); invalidate_store(sid)
+        db2 = dict(db); db2["movies"] = movies
+        r2_storage.save_movies_db(db2); invalidate_store(sid)
         return jsonify({"success": True})
     except Exception as e: return jsonify({"success": False, "error": str(e)})
 
@@ -722,26 +762,20 @@ def api_rated_movies():
     if sid not in STORE: load_store_from_db(sid)
     df = get_df(sid)
     if df is None: return jsonify({"movies": []})
-    rated = df[df["Watched"]].sort_values(
-        ["My Score","Title"], ascending=[False,True], na_position="last")
+    rated = df[df["Watched"]].sort_values(["My Score","Title"], ascending=[False,True], na_position="last")
     movies = []
     for _, r in rated.iterrows():
         yr = r.get("Release Year")
         yr_int = int(yr) if pd.notna(yr) and yr else None
-        movies.append({
-            "key":      movie_key(r.get("Title",""), yr_int),
-            "title":    r.get("Title",""),
-            "year":     yr_int,
-            "my_score": r.get("My Score"),
-            "genre":    r.get("Genre",""),
-        })
+        movies.append({"key": movie_key(r.get("Title",""), yr_int),
+                       "title": r.get("Title",""), "year": yr_int,
+                       "my_score": r.get("My Score"), "genre": r.get("Genre","")})
     return jsonify({"movies": movies})
 
 
 @app.route("/api/all_movies")
 @admin_required
 def api_all_movies():
-    """All movies for edit tab"""
     sid = get_sid()
     if sid not in STORE: load_store_from_db(sid)
     df = get_df(sid)
@@ -751,10 +785,8 @@ def api_all_movies():
         yr = r.get("Release Year")
         yr_int = int(yr) if pd.notna(yr) and yr else None
         movies.append({
-            "title":    r.get("Title",""),
-            "year":     yr_int,
-            "genre":    r.get("Genre",""),
-            "duration": r.get("Movie Duration",""),
+            "title":    r.get("Title",""), "year": yr_int,
+            "genre":    r.get("Genre",""), "duration": r.get("Movie Duration",""),
             "watched":  bool(r.get("Watched",False)),
             "my_score": r.get("My Score") if pd.notna(r.get("My Score",None)) else None,
             "imdb":     r.get("IMDB Rating",""),
@@ -765,7 +797,7 @@ def api_all_movies():
 @app.route("/api/top10", methods=["GET"])
 @admin_required
 def get_top10():
-    db = r2_storage.load_movies_db()
+    db = get_db()
     return jsonify({"top10": db.get("top10",[])})
 
 @app.route("/api/top10", methods=["POST"])
@@ -773,9 +805,8 @@ def get_top10():
 def save_top10():
     try:
         data = request.get_json(); sid = get_sid()
-        db = r2_storage.load_movies_db()
-        db["top10"] = data.get("top10",[])
-        r2_storage.save_movies_db(db); invalidate_store(sid)
+        db = get_db(); db2 = dict(db); db2["top10"] = data.get("top10",[])
+        r2_storage.save_movies_db(db2); invalidate_store(sid)
         return jsonify({"success": True})
     except Exception as e: return jsonify({"success": False, "error": str(e)})
 
