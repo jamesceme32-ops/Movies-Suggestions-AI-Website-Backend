@@ -84,6 +84,7 @@ def movies_list_to_df(movies):
             "Cast":           m.get("cast", ""),
             "Director":       m.get("director", ""),
             "Plot":           m.get("plot", ""),
+            "Language":       m.get("language", ""),
             "Poster URL":     m.get("poster_url", ""),
             "IMDB URL":       m.get("imdb_url", ""),
             "Google URL":     m.get("google_url", ""),
@@ -107,6 +108,7 @@ def df_to_movies_list(df):
             "imdb_rating": r.get("IMDB Rating") if pd.notna(r.get("IMDB Rating", None)) else None,
             "actors":      r.get("Actors", ""),
             "cast":        r.get("Cast", ""),
+            "language":    r.get("Language", ""),
             "director":    r.get("Director", ""),
             "plot":        r.get("Plot", ""),
             "poster_url":  r.get("Poster URL", ""),
@@ -251,8 +253,12 @@ def _fetch_one(imdb_id):
         if d.get("Response") == "True":
             actors = d.get("Actors", "")
             top6   = ", ".join(a.strip() for a in actors.split(",")[:6])
+            # Pull first language only
+            lang_raw = d.get("Language", "")
+            language = lang_raw.split(",")[0].strip() if lang_raw else ""
             return {"IMDB Rating": _safe_float(d.get("imdbRating")),
-                    "Actors": top6, "Director": d.get("Director",""), "Plot": d.get("Plot","")}
+                    "Actors": top6, "Director": d.get("Director",""),
+                    "Plot": d.get("Plot",""), "Language": language}
     except Exception: pass
     return {}
 
@@ -271,11 +277,14 @@ def omdb_by_title(title: str, year=None) -> dict:
             actors = d.get("Actors", "")
             top6   = ", ".join(a.strip() for a in actors.split(",")[:6])
             imdb_id = d.get("imdbID", "")
+            lang_raw = d.get("Language", "")
+            language = lang_raw.split(",")[0].strip() if lang_raw else ""
             return {
                 "IMDB Rating": _safe_float(d.get("imdbRating")),
                 "Actors":      top6,
                 "Director":    d.get("Director", ""),
                 "Plot":        d.get("Plot", ""),
+                "Language":    language,
                 "imdb_id":     imdb_id,
                 "imdb_url":    f"https://www.imdb.com/title/{imdb_id}/" if imdb_id else "",
                 "genre":       d.get("Genre", "").replace(", ", "/"),
@@ -331,7 +340,7 @@ def tmdb_cast_and_poster(imdb_id: str) -> dict:
             timeout=8
         )
         cast_list = cr.json().get("cast", [])
-        top6 = ", ".join(c["name"] for c in cast_list[:6])
+        top6 = ", ".join(c["name"] for c in cast_list[:8])
 
         return {
             "cast":       top6,
@@ -528,6 +537,7 @@ def row_to_dict(r):
         "my_score":   r.get("My Score",""),
         "actors":     r.get("Actors",""),
         "cast":       r.get("Cast",""),
+        "language":   r.get("Language",""),
         "director":   r.get("Director",""),
         "plot":       r.get("Plot",""),
         "poster_url": r.get("Poster URL",""),
@@ -617,6 +627,7 @@ def top_movies():
         k = movie_key(d["title"], yr)
         d["top10_rank"] = top10_rank.get(k)
         d["cast"]       = r.get("Cast", "")
+        d["language"]   = r.get("Language", "")
         d["poster_url"] = r.get("Poster URL", "")
         movies.append(d)
     top10  = sorted([m for m in movies if m["top10_rank"]], key=lambda x: x["top10_rank"])
@@ -949,6 +960,7 @@ def _refresh_omdb_background():
                 m["actors"]      = data.get("Actors", "")
                 m["director"]    = data.get("Director", "")
                 m["plot"]        = data.get("Plot", "")
+                if data.get("Language"): m["language"] = data["Language"]
                 if not m.get("imdb_url") and data.get("imdb_url"):
                     m["imdb_url"] = data["imdb_url"]
                 # Also fill genre/duration if they were empty
@@ -1079,6 +1091,87 @@ def admin_refresh_omdb():
 @admin_required
 def admin_refresh_progress():
     return jsonify(REFRESH_STATUS)
+
+
+# ══════════════════════════════════════════════
+#  ADMIN — REFRESH TMDB DATA (cast + poster)
+# ══════════════════════════════════════════════
+
+TMDB_REFRESH_STATUS = {"running": False, "done": 0, "total": 0,
+                       "filled": 0, "complete": False, "error": ""}
+
+
+def _tmdb_refresh_background():
+    global TMDB_REFRESH_STATUS
+    try:
+        db     = r2_storage.load_movies_db()
+        movies = db.get("movies", [])
+
+        # Only process movies that have an imdb_url (need IMDb ID for TMDb lookup)
+        # and are missing cast or poster
+        missing = [m for m in movies
+                   if _extract_imdb_id(m.get("imdb_url", ""))
+                   and (not m.get("cast") or not m.get("poster_url"))]
+
+        TMDB_REFRESH_STATUS.update({
+            "running": True, "done": 0, "total": len(missing),
+            "filled": 0, "complete": False, "error": ""
+        })
+
+        filled = 0
+        for i, m in enumerate(missing):
+            imdb_id = _extract_imdb_id(m.get("imdb_url", ""))
+            tmdb    = tmdb_cast_and_poster(imdb_id)
+            if tmdb.get("cast"):
+                m["cast"]   = tmdb["cast"]
+                filled += 1
+            if tmdb.get("poster_url"):
+                m["poster_url"] = tmdb["poster_url"]
+
+            TMDB_REFRESH_STATUS["done"]   = i + 1
+            TMDB_REFRESH_STATUS["filled"] = filled
+
+            # Save every 200 movies
+            if (i + 1) % 200 == 0:
+                db["movies"] = movies
+                r2_storage.save_movies_db(db)
+                invalidate_db()
+
+        db["movies"] = movies
+        r2_storage.save_movies_db(db)
+        with STORE_LOCK:
+            STORE.clear()
+        invalidate_db()
+
+        TMDB_REFRESH_STATUS["complete"] = True
+        TMDB_REFRESH_STATUS["running"]  = False
+
+    except Exception as e:
+        TMDB_REFRESH_STATUS["error"]    = str(e)
+        TMDB_REFRESH_STATUS["running"]  = False
+        TMDB_REFRESH_STATUS["complete"] = True
+
+
+@app.route("/admin/refresh-tmdb", methods=["POST"])
+@admin_required
+def admin_refresh_tmdb():
+    try:
+        if TMDB_REFRESH_STATUS.get("running"):
+            return jsonify({"error": "TMDb refresh already running"}), 400
+        if not TMDB_API_KEY:
+            return jsonify({"error": "TMDB_API_KEY is not set in Railway environment variables."}), 400
+        TMDB_REFRESH_STATUS["complete"] = False
+        TMDB_REFRESH_STATUS["error"]    = ""
+        threading.Thread(target=_tmdb_refresh_background, daemon=True).start()
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/admin/refresh-tmdb/progress")
+@admin_required
+def admin_tmdb_progress():
+    return jsonify(TMDB_REFRESH_STATUS)
 
 
 if __name__ == "__main__":
