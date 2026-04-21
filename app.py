@@ -922,12 +922,18 @@ def _refresh_omdb_background():
                 db["movies"] = movies
                 r2_storage.save_movies_db(db)
                 r2_storage.save_cache(cache)
+                with STORE_LOCK:
+                    STORE.clear()
                 invalidate_db()
 
-        # Final save
+        # Final save to R2
         db["movies"] = movies
         r2_storage.save_movies_db(db)
         r2_storage.save_cache(cache)
+
+        # Clear ALL in-memory session stores so every user gets fresh data on next load
+        with STORE_LOCK:
+            STORE.clear()
         invalidate_db()
 
         REFRESH_STATUS["complete"] = True
