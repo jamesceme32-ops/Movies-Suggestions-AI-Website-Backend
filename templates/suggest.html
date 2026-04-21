@@ -44,6 +44,23 @@
   .details-inner strong { color:var(--cyan); font-weight:600; display:block; margin-bottom:4px; font-size:.72rem; text-transform:uppercase; letter-spacing:.06em; }
   .details-inner p { color:var(--star-white); line-height:1.55; }
 
+
+  /* Poster thumbnail in table */
+  .poster-thumb {
+    width:40px; min-width:40px; height:60px;
+    object-fit:cover; border-radius:4px;
+    cursor:zoom-in; transition:transform .15s;
+    display:block;
+  }
+  .poster-thumb:hover { transform:scale(1.08); }
+  .poster-placeholder {
+    width:40px; min-width:40px; height:60px;
+    border-radius:4px; background:rgba(64,200,240,.07);
+    border:1px solid var(--panel-border);
+    display:flex; align-items:center; justify-content:center;
+    font-size:1.1rem; color:var(--dim-white);
+  }
+
   .form-actions { display:flex; align-items:center; gap:12px; margin-top:24px; flex-wrap:wrap; }
   .no-results { text-align:center; padding:48px; font-size:.9rem; color:var(--dim-white); }
   .no-results span { font-size:2rem; display:block; margin-bottom:12px; }
@@ -124,9 +141,9 @@
       </div>
       <div id="dur-inputs"></div>
     </div>
-    <div class="filter-section" style="max-width:480px;">
-      <label class="form-label">Actor / Director Filter <span style="font-weight:400;font-size:.78rem;color:var(--dim-white);">— search by first &amp; last name or last name only</span></label>
-      <input type="text" name="actor" placeholder="e.g. Tom Hanks, Steven Spielberg, Johansson, etc." value="{{ form.actor or '' }}">
+    <div class="filter-section" style="max-width:380px;">
+      <label class="form-label">Actor / Director Filter</label>
+      <input type="text" name="actor" placeholder="Tom Hanks, Steven Spielberg, Johansson, etc." value="{{ form.actor or '' }}">
     </div>
     <div class="form-actions">
       <button type="submit" class="btn btn-primary">◈ GET RECOMMENDATIONS</button>
@@ -145,6 +162,7 @@
     <table id="results-table">
       <thead>
         <tr>
+          <th class="nowrap" style="width:44px;"></th>
           <th class="sortable nowrap" data-col="0">Title <span class="sort-arrow">↕</span></th>
           <th class="sortable nowrap" data-col="1">Year <span class="sort-arrow">↕</span></th>
           <th class="sortable nowrap" data-col="2">Genre <span class="sort-arrow">↕</span></th>
@@ -172,6 +190,17 @@
       <tbody>
         {% for m in results %}
         <tr class="result-row" id="row-{{ loop.index0 }}">
+          <td style="padding:6px 8px;vertical-align:middle;width:44px;">
+            {% if m.poster_url %}
+            <img class="poster-thumb"
+                 src="{{ m.poster_url }}"
+                 alt="{{ m.title }}"
+                 onclick="openPosterModal('{{ m.poster_url }}','{{ m.title }}')"
+                 title="Click to enlarge">
+            {% else %}
+            <div class="poster-placeholder">🎬</div>
+            {% endif %}
+          </td>
           <td class="col-title">
             <button class="title-btn" data-idx="{{ loop.index0 }}">{{ m.title }}</button>
           </td>
@@ -194,17 +223,12 @@
           </td>
         </tr>
         <tr class="details-row" id="details-{{ loop.index0 }}" style="display:none">
-          <td colspan="10">
-            <div style="display:flex;gap:16px;align-items:flex-start;">
-              {% if m.poster_url %}
-              <img src="{{ m.poster_url }}" alt="{{ m.title }}" style="width:72px;min-width:72px;border-radius:6px;display:block;margin-top:2px;">
-              {% endif %}
-              <div class="details-inner" style="flex:1;grid-template-columns:1fr 1fr 1fr 1fr;">
-                <div><strong>Plot</strong><p>{{ m.plot or 'Not available.' }}</p></div>
-                <div><strong>Director</strong><p>{{ m.director or '—' }}</p></div>
-                <div><strong>Cast</strong><p>{{ m.cast or m.actors or '—' }}</p></div>
-                <div><strong>Language</strong><p>{{ m.language or '—' }}</p></div>
-              </div>
+          <td colspan="11">
+            <div class="details-inner" style="grid-template-columns:1fr 1fr 1fr 1fr;">
+              <div><strong>Plot</strong><p>{{ m.plot or 'Not available.' }}</p></div>
+              <div><strong>Director</strong><p>{{ m.director or '—' }}</p></div>
+              <div><strong>Cast</strong><p>{{ m.cast or m.actors or '—' }}</p></div>
+              <div><strong>Language</strong><p>{{ m.language or '—' }}</p></div>
             </div>
           </td>
         </tr>

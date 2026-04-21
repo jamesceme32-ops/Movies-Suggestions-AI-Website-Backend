@@ -45,6 +45,12 @@
 
   .section-divider td { background:rgba(13,31,60,.5) !important; color:var(--dim-white); font-size:.72rem; font-family:'Space Grotesk',sans-serif; letter-spacing:.1em; text-transform:uppercase; padding:6px 12px !important; border-left:none !important; }
 
+
+  /* Poster thumbnail */
+  .poster-thumb { width:40px; min-width:40px; height:60px; object-fit:cover; border-radius:4px; cursor:zoom-in; transition:transform .15s; display:block; }
+  .poster-thumb:hover { transform:scale(1.08); }
+  .poster-placeholder { width:40px; min-width:40px; height:60px; border-radius:4px; background:rgba(64,200,240,.07); border:1px solid var(--panel-border); display:flex; align-items:center; justify-content:center; font-size:1.1rem; }
+
   th.sortable { cursor:pointer; }
   th.sortable:hover { color:var(--gold); }
   th .sort-arrow { margin-left:3px; opacity:.4; }
@@ -68,6 +74,7 @@
       <thead>
         <tr>
           <th style="width:44px;" class="nowrap">#</th>
+          <th style="width:44px;"></th>
           <th class="sortable nowrap" data-col="1">Title <span class="sort-arrow">↕</span></th>
           <th class="sortable nowrap" data-col="2">Year <span class="sort-arrow">↕</span></th>
           <th class="sortable nowrap" data-col="3">Genre <span class="sort-arrow">↕</span></th>
@@ -83,7 +90,7 @@
 
           {% if not shown_divider.val and not m.top10_rank %}
             {% set shown_divider.val = true %}
-            <tr class="section-divider"><td colspan="8">All Reviewed Movies</td></tr>
+            <tr class="section-divider"><td colspan="9">All Reviewed Movies</td></tr>
           {% endif %}
 
           {% if m.top10_rank == 1 %}
@@ -104,6 +111,14 @@
                 {{ m.top10_rank if m.top10_rank else loop.index }}
               </span>
             </td>
+            <td style="padding:6px 8px;vertical-align:middle;width:44px;">
+              {% if m.poster_url %}
+              <img class="poster-thumb" src="{{ m.poster_url }}" alt="{{ m.title }}"
+                   onclick="openPosterModal('{{ m.poster_url }}','{{ m.title }}')" title="Click to enlarge">
+              {% else %}
+              <div class="poster-placeholder">🎬</div>
+              {% endif %}
+            </td>
             <td class="col-title">
               <button class="title-btn" data-idx="{{ loop.index0 }}">{{ m.title }}</button>
             </td>
@@ -123,17 +138,12 @@
             </td>
           </tr>
           <tr class="details-row" id="details-{{ loop.index0 }}" style="display:none">
-            <td colspan="8">
-              <div style="display:flex;gap:16px;align-items:flex-start;">
-                {% if m.poster_url %}
-                <img src="{{ m.poster_url }}" alt="{{ m.title }}" style="width:72px;min-width:72px;border-radius:6px;display:block;margin-top:2px;">
-                {% endif %}
-                <div class="details-inner" style="flex:1;grid-template-columns:1fr 1fr 1fr 1fr;">
-                  <div><strong>Plot</strong><p>{{ m.plot or 'Not available.' }}</p></div>
-                  <div><strong>Director</strong><p>{{ m.director or '—' }}</p></div>
-                  <div><strong>Cast</strong><p>{{ m.cast or m.actors or '—' }}</p></div>
-                  <div><strong>Language</strong><p>{{ m.language or '—' }}</p></div>
-                </div>
+            <td colspan="9">
+              <div class="details-inner" style="grid-template-columns:1fr 1fr 1fr 1fr;">
+                <div><strong>Plot</strong><p>{{ m.plot or 'Not available.' }}</p></div>
+                <div><strong>Director</strong><p>{{ m.director or '—' }}</p></div>
+                <div><strong>Cast</strong><p>{{ m.cast or m.actors or '—' }}</p></div>
+                <div><strong>Language</strong><p>{{ m.language or '—' }}</p></div>
               </div>
             </td>
           </tr>
