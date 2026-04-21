@@ -980,7 +980,30 @@ def admin_debug():
 
 
 
-@app.route("/admin/refresh-omdb", methods=["POST"])
+@app.route("/admin/test-omdb")
+@admin_required
+def admin_test_omdb():
+    """Test OMDb API with a known movie and return the raw response."""
+    if not OMDB_API_KEY:
+        return jsonify({"error": "OMDB_API_KEY not set", "key_value": "empty"})
+    try:
+        r = requests.get(
+            "https://www.omdbapi.com/",
+            params={"apikey": OMDB_API_KEY, "t": "12 Angry Men", "y": "1957",
+                    "plot": "short", "type": "movie"},
+            timeout=10
+        )
+        raw = r.json()
+        return jsonify({
+            "status_code":  r.status_code,
+            "omdb_response": raw,
+            "key_preview":  OMDB_API_KEY[:6] + "..." if len(OMDB_API_KEY) > 6 else OMDB_API_KEY,
+        })
+    except Exception as e:
+        return jsonify({"exception": str(e), "type": type(e).__name__})
+
+
+
 @admin_required
 def admin_refresh_omdb():
     try:
