@@ -124,9 +124,9 @@
       </div>
       <div id="dur-inputs"></div>
     </div>
-    <div class="filter-section" style="max-width:380px;">
-      <label class="form-label">Actor / Director Filter</label>
-      <input type="text" name="actor" placeholder="Tom Hanks, Steven Spielberg, Johansson, etc." value="{{ form.actor or '' }}">
+    <div class="filter-section" style="max-width:440px;">
+      <label class="form-label">Actor / Director Filter <span style="font-weight:400;font-size:.78rem;color:var(--dim-white);">— search by first &amp; last name or last name only</span></label>
+      <input type="text" name="actor" placeholder="e.g. Tom Hanks, Steven Spielberg, Johansson, etc." value="{{ form.actor or '' }}">
     </div>
     <div class="form-actions">
       <button type="submit" class="btn btn-primary">◈ GET RECOMMENDATIONS</button>
@@ -195,10 +195,15 @@
         </tr>
         <tr class="details-row" id="details-{{ loop.index0 }}" style="display:none">
           <td colspan="10">
-            <div class="details-inner">
+            <div class="details-inner" style="grid-template-columns:{% if True %}auto 1fr 1fr 1fr{% endif %}">
+              {% if m.poster_url %}
+              <div style="grid-row:span 1;">
+                <img src="{{ m.poster_url }}" alt="{{ m.title }}" style="width:80px;border-radius:6px;display:block;">
+              </div>
+              {% endif %}
               <div><strong>Plot</strong><p>{{ m.plot or 'Not available.' }}</p></div>
               <div><strong>Director</strong><p>{{ m.director or '—' }}</p></div>
-              <div><strong>Cast</strong><p>{{ m.actors or '—' }}</p></div>
+              <div><strong>Cast</strong><p>{{ m.cast or m.actors or '—' }}</p></div>
             </div>
           </td>
         </tr>

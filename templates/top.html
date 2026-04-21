@@ -124,10 +124,15 @@
           </tr>
           <tr class="details-row" id="details-{{ loop.index0 }}" style="display:none">
             <td colspan="8">
-              <div class="details-inner">
+              <div class="details-inner" style="{% if m.poster_url %}grid-template-columns:auto 1fr 1fr 1fr{% endif %}">
+                {% if m.poster_url %}
+                <div>
+                  <img src="{{ m.poster_url }}" alt="{{ m.title }}" style="width:80px;border-radius:6px;display:block;">
+                </div>
+                {% endif %}
                 <div><strong>Plot</strong><p>{{ m.plot or 'Not available.' }}</p></div>
                 <div><strong>Director</strong><p>{{ m.director or '—' }}</p></div>
-                <div><strong>Cast</strong><p>{{ m.actors or '—' }}</p></div>
+                <div><strong>Cast</strong><p>{{ m.cast or m.actors or '—' }}</p></div>
               </div>
             </td>
           </tr>
