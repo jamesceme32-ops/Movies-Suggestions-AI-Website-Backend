@@ -100,7 +100,7 @@
     <button class="tab-btn active" data-tab="search">＋ Search &amp; Add</button>
     <button class="tab-btn" data-tab="top10">⭐ My Top 10</button>
     <button class="tab-btn" data-tab="edit">✏️ Edit Movies</button>
-    <button class="tab-btn" data-tab="refresh">🔄 Refresh IMDb Data</button>
+    <button class="tab-btn" data-tab="refresh">🔄 Refresh Data</button>
   </div>
 
   <!-- ══ TAB: SEARCH & ADD ══ -->
@@ -175,20 +175,19 @@
     </div>
   </div>
 
-  <!-- ══ TAB: REFRESH IMDB ══ -->
+  <!-- ══ TAB: REFRESH DATA ══ -->
   <div class="tab-pane" id="tab-refresh">
+
+    <!-- OMDb Refresh -->
     <div class="panel">
-      <div class="panel-title">REFRESH IMDb DATA</div>
+      <div class="panel-title">REFRESH IMDb DATA <span style="font-size:.7rem;font-weight:400;color:var(--dim-white);text-transform:none;letter-spacing:0;">via OMDb — ratings, plot, director, language, genre</span></div>
       <p style="font-size:.85rem;color:var(--dim-white);margin-bottom:8px;line-height:1.6;">
-        If movies are missing IMDb ratings, actors, directors, or plot summaries, use this to fill them in.
-        It checks the local cache first (instant), then calls the IMDb API only for what's still missing.
+        Fills in missing IMDb ratings, plot summaries, directors, and language. Checks cache first — only calls the API for what's still missing. Run this first before TMDb.
       </p>
       <p style="font-size:.82rem;color:var(--gold);margin-bottom:20px;">
-        ⚠️ Make sure <strong>OMDB_API_KEY</strong> is set in Railway before running if you expect API calls.
+        ⚠️ Requires <strong>OMDB_API_KEY</strong> in Railway. Free tier = 1,000 calls/day.
       </p>
-
-      <button class="btn btn-primary" id="refreshBtn">🔄 Start Refresh</button>
-
+      <button class="btn btn-primary" id="refreshBtn">🔄 Start OMDb Refresh</button>
       <div id="refreshProgress" style="display:none;margin-top:20px;">
         <div style="background:rgba(13,31,60,.8);border:1px solid var(--panel-border);border-radius:8px;height:12px;overflow:hidden;margin-bottom:10px;">
           <div id="refreshBar" style="height:100%;background:linear-gradient(90deg,var(--cyan-dim),var(--cyan));border-radius:8px;transition:width .4s;width:0%;"></div>
@@ -202,6 +201,30 @@
       <div id="refreshDone" style="display:none;margin-top:16px;" class="alert-success"></div>
       <div id="refreshErr"  style="display:none;margin-top:16px;" class="alert-error"></div>
     </div>
+
+    <!-- TMDb Refresh -->
+    <div class="panel">
+      <div class="panel-title">REFRESH CAST &amp; POSTERS <span style="font-size:.7rem;font-weight:400;color:var(--dim-white);text-transform:none;letter-spacing:0;">via TMDb — top 8 actors + poster images</span></div>
+      <p style="font-size:.85rem;color:var(--dim-white);margin-bottom:8px;line-height:1.6;">
+        Fills in the top 8 cast members and movie poster images using TMDb. No daily limit — can process all movies at once. Run OMDb refresh first so IMDb IDs are available.
+      </p>
+      <p style="font-size:.82rem;color:var(--gold);margin-bottom:20px;">
+        ⚠️ Requires <strong>TMDB_API_KEY</strong> in Railway.
+      </p>
+      <button class="btn btn-primary" id="tmdbRefreshBtn">🎭 Start TMDb Refresh</button>
+      <div id="tmdbProgress" style="display:none;margin-top:20px;">
+        <div style="background:rgba(13,31,60,.8);border:1px solid var(--panel-border);border-radius:8px;height:12px;overflow:hidden;margin-bottom:10px;">
+          <div id="tmdbBar" style="height:100%;background:linear-gradient(90deg,#7c3aed,#a78bfa);border-radius:8px;transition:width .4s;width:0%;"></div>
+        </div>
+        <p id="tmdbLabel" style="font-size:.84rem;color:var(--dim-white);margin-bottom:8px;"></p>
+        <div style="font-size:.8rem;color:var(--dim-white);">
+          🎭 Cast filled: <strong id="tFilled" style="color:var(--gold);">0</strong>
+        </div>
+      </div>
+      <div id="tmdbDone" style="display:none;margin-top:16px;" class="alert-success"></div>
+      <div id="tmdbErr"  style="display:none;margin-top:16px;" class="alert-error"></div>
+    </div>
+
   </div>
 
   <div style="margin-top:8px;text-align:right;">
@@ -538,14 +561,14 @@
 
       if (data.complete) {
         document.getElementById('refreshBtn').disabled    = false;
-        document.getElementById('refreshBtn').textContent = '🔄 Start Refresh';
+        document.getElementById('refreshBtn').textContent = '🔄 Start OMDb Refresh';
         if (data.error) {
-          document.getElementById('refreshErr').textContent  = data.error;
+          document.getElementById('refreshErr').textContent   = data.error;
           document.getElementById('refreshErr').style.display = 'block';
         } else {
           const msg = `✅ Done! Filled ${data.from_cache + data.from_api} movies `+
                       `(${data.from_cache} from cache, ${data.from_api} from API). `+
-                      `Reload the page to see updated data.`;
+                      `Hit /reset to reload.`;
           document.getElementById('refreshDone').textContent  = msg;
           document.getElementById('refreshDone').style.display = 'block';
         }
@@ -553,6 +576,48 @@
         setTimeout(pollRefresh, 800);
       }
     }).catch(() => setTimeout(pollRefresh, 2000));
+  }
+
+  // ── TMDb Refresh ─────────────────────────────────────────────────────────
+  document.getElementById('tmdbRefreshBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('tmdbRefreshBtn');
+    btn.disabled = true; btn.textContent = 'Running...';
+    document.getElementById('tmdbProgress').style.display = 'block';
+    document.getElementById('tmdbDone').style.display = 'none';
+    document.getElementById('tmdbErr').style.display  = 'none';
+    try {
+      const start = await fetch('/admin/refresh-tmdb', { method: 'POST' });
+      const sdata = await start.json();
+      if (!start.ok || sdata.error) throw new Error(sdata.error || 'Failed to start');
+      pollTmdb();
+    } catch(e) {
+      document.getElementById('tmdbErr').textContent  = e.message;
+      document.getElementById('tmdbErr').style.display = 'block';
+      btn.disabled = false; btn.textContent = '🎭 Start TMDb Refresh';
+    }
+  });
+
+  function pollTmdb() {
+    fetch('/admin/refresh-tmdb/progress').then(r=>r.json()).then(data => {
+      const pct = data.total > 0 ? (data.done / data.total * 100) : 0;
+      document.getElementById('tmdbBar').style.width   = pct.toFixed(1) + '%';
+      document.getElementById('tmdbLabel').textContent = `${data.done} / ${data.total} movies processed`;
+      document.getElementById('tFilled').textContent   = data.filled || 0;
+
+      if (data.complete) {
+        document.getElementById('tmdbRefreshBtn').disabled    = false;
+        document.getElementById('tmdbRefreshBtn').textContent = '🎭 Start TMDb Refresh';
+        if (data.error) {
+          document.getElementById('tmdbErr').textContent   = data.error;
+          document.getElementById('tmdbErr').style.display = 'block';
+        } else {
+          document.getElementById('tmdbDone').textContent  = `✅ Done! ${data.filled} movies filled with cast & posters. Hit /reset to reload.`;
+          document.getElementById('tmdbDone').style.display = 'block';
+        }
+      } else {
+        setTimeout(pollTmdb, 800);
+      }
+    }).catch(() => setTimeout(pollTmdb, 2000));
   }
 </script>
 {% endblock %}
