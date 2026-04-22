@@ -283,7 +283,7 @@
 <script>
 
   // Check admin session on load
-  fetch('/admin/debug-add').then(r => {
+  fetch('/admin/debug-add', { credentials: 'same-origin' }).then(r => {
     if (r.ok) {
       r.json().then(d => {
         const el = document.getElementById('session-status');
@@ -338,7 +338,7 @@
     document.getElementById('detailsPanel').style.display = 'none';
     selectedMovie = null;
     try {
-      const res = await fetch(`/api/search_movie?q=${encodeURIComponent(q)}${y?'&year='+y:''}`);
+      const res = await fetch(`/api/search_movie?q=${encodeURIComponent(q)}${y?'&year='+y:''}`, { credentials: 'same-origin' });
       if (res.redirected || res.url.includes('/admin/login')) {
         document.getElementById('searching').style.display = 'none';
         document.getElementById('no-results').textContent = 'Session expired — please log in again.';
@@ -348,12 +348,17 @@
       }
       const data = await res.json();
       document.getElementById('searching').style.display = 'none';
-      if (!data.results?.length) {
-        const errMsg = data.error || 'No results found.';
-        document.getElementById('no-results').textContent = errMsg;
+      if (data.error) {
+        document.getElementById('no-results').textContent = '⚠️ ' + data.error;
         document.getElementById('no-results').style.display = 'block';
         return;
       }
+      if (!data.results?.length) {
+        document.getElementById('no-results').textContent = 'No results found — try a different title or year.';
+        document.getElementById('no-results').style.display = 'block';
+        return;
+      }
+      document.getElementById('no-results').style.display = 'none';
       const container = document.getElementById('searchResults');
       data.results.forEach(m => {
         const card = document.createElement('div'); card.className = 'movie-card'; card.dataset.id = m.imdbID;
@@ -371,7 +376,7 @@
   async function selectMovie(imdbId, card) {
     document.querySelectorAll('.movie-card').forEach(c => c.classList.remove('selected'));
     card.classList.add('selected');
-    const res = await fetch(`/api/movie_details?id=${imdbId}`);
+    const res = await fetch(`/api/movie_details?id=${imdbId}`, { credentials: 'same-origin' });
     const data = await res.json();
     if (data.error) { showFlash(data.error, false); return; }
     selectedMovie = data; selectedScore = null;
@@ -409,7 +414,8 @@
     if (watched && selectedScore===null) { showFlash('Please select your score (1–10).', false); return; }
     document.getElementById('saveTxt').style.display='none'; document.getElementById('saveLoad').style.display='inline'; document.getElementById('saveBtn').disabled=true;
     try {
-      const res  = await fetch('/api/save_movie', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...selectedMovie,watched,my_score:watched?selectedScore:null})});
+      const res  = await fetch('/api/save_movie', {
+        credentials: 'same-origin',method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...selectedMovie,watched,my_score:watched?selectedScore:null})});
       const data = await res.json();
       if (data.success) {
         showFlash(`✅ "${selectedMovie.title}" added!`, true);
@@ -501,7 +507,8 @@
     const btn = document.getElementById('saveTop10Btn');
     btn.textContent='Saving...'; btn.disabled=true;
     try {
-      const res  = await fetch('/api/top10',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({top10:top10Keys})});
+      const res  = await fetch('/api/top10',{
+        credentials: 'same-origin',method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({top10:top10Keys})});
       const data = await res.json();
       showFlash(data.success?'✅ Top 10 saved!':(data.error||'Failed.'), data.success);
     } catch(e) { showFlash('Something went wrong.',false); }
@@ -612,6 +619,7 @@
 
     try {
       const res = await fetch('/api/edit_movie', {
+        credentials: 'same-origin',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -662,7 +670,9 @@
     document.getElementById('refreshErr').style.display  = 'none';
 
     try {
-      const start = await fetch('/admin/refresh-omdb', { method: 'POST' });
+      const start = await fetch('/admin/refresh-omdb', {
+        credentials: 'same-origin', method: 'POST',
+        credentials: 'same-origin'});
       if (!start.ok) { throw new Error('Failed to start refresh'); }
       pollRefresh();
     } catch(e) {
@@ -673,7 +683,7 @@
   });
 
   function pollRefresh() {
-    fetch('/admin/refresh-omdb/progress').then(r=>r.json()).then(data => {
+    fetch('/admin/refresh-omdb/progress', { credentials: 'same-origin' }).then(r=>r.json()).then(data => {
       const pct = data.total > 0 ? (data.done / data.total * 100) : 0;
       document.getElementById('refreshBar').style.width   = pct.toFixed(1) + '%';
       document.getElementById('refreshLabel').textContent = `${data.done} / ${data.total} movies processed`;
@@ -707,7 +717,9 @@
     document.getElementById('tmdbDone').style.display = 'none';
     document.getElementById('tmdbErr').style.display  = 'none';
     try {
-      const start = await fetch('/admin/refresh-tmdb', { method: 'POST' });
+      const start = await fetch('/admin/refresh-tmdb', {
+        credentials: 'same-origin', method: 'POST',
+        credentials: 'same-origin'});
       const sdata = await start.json();
       if (!start.ok || sdata.error) throw new Error(sdata.error || 'Failed to start');
       pollTmdb();
@@ -719,7 +731,7 @@
   });
 
   function pollTmdb() {
-    fetch('/admin/refresh-tmdb/progress').then(r=>r.json()).then(data => {
+    fetch('/admin/refresh-tmdb/progress', { credentials: 'same-origin' }).then(r=>r.json()).then(data => {
       const pct = data.total > 0 ? (data.done / data.total * 100) : 0;
       document.getElementById('tmdbBar').style.width   = pct.toFixed(1) + '%';
       document.getElementById('tmdbLabel').textContent = `${data.done} / ${data.total} movies processed`;

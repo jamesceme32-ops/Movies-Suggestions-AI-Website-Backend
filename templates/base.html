@@ -232,29 +232,39 @@
       try {
         const res = await fetch(url, { credentials: 'same-origin' });
         if (!res.ok) { window.location.href = url; return; }
-        const html  = await res.text();
+        const html   = await res.text();
         const parser = new DOMParser();
         const newDoc = parser.parseFromString(html, 'text/html');
         const newPage = newDoc.querySelector('.page');
         if (!newPage) { window.location.href = url; return; }
 
-        // Update title and nav
+        // ── Swap page-specific <style> tags from {% block head %} ─────────
+        // Remove previous page styles (all except the first base style)
+        document.querySelectorAll('style[data-page-style]').forEach(s => s.remove());
+        // Add new page styles (skip the first <style> which is the base)
+        const newStyles = Array.from(newDoc.querySelectorAll('head style')).slice(1);
+        newStyles.forEach(st => {
+          const s = document.createElement('style');
+          s.setAttribute('data-page-style', '1');
+          s.textContent = st.textContent;
+          document.head.appendChild(s);
+        });
+
+        // ── Update title and nav ──────────────────────────────────────────
         document.title = newDoc.title;
         const newNav = newDoc.querySelector('nav');
         if (newNav) document.querySelector('nav').innerHTML = newNav.innerHTML;
 
-        // Extract scripts from new page content
+        // ── Extract and remove scripts from page content ──────────────────
         const scripts = Array.from(newPage.querySelectorAll('script'));
         scripts.forEach(s => s.remove());
-
-        // Remove old page scripts
         document.querySelectorAll('script[data-spa]').forEach(s => s.remove());
 
-        // Swap page content
+        // ── Swap page content ─────────────────────────────────────────────
         const page = document.querySelector('.page');
         page.innerHTML = newPage.innerHTML;
 
-        // Re-run page scripts
+        // ── Re-execute page scripts ───────────────────────────────────────
         for (const old of scripts) {
           const s = document.createElement('script');
           s.setAttribute('data-spa', '1');
@@ -265,8 +275,7 @@
 
         history.pushState({ url }, '', url);
         window.scrollTo(0, 0);
-
-        // Trigger fade animation
+        // Brief fade-in
         page.style.animation = 'none';
         void page.offsetWidth;
         page.style.animation = '';
