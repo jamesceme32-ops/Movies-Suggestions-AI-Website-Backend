@@ -22,6 +22,16 @@ except ImportError:
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "jzmovies-dev-key-change-in-prod")
+
+import traceback
+
+@app.errorhandler(500)
+def internal_error(e):
+    tb = traceback.format_exc()
+    app.logger.error(f"500 error: {tb}")
+    return f"<pre style='padding:20px;font-size:12px;'><b>500 Error — copy this and share it:</b>\n\n{tb}</pre>", 500
+
+
 OMDB_API_KEY   = os.environ.get("OMDB_API_KEY", "")
 TMDB_API_KEY   = os.environ.get("TMDB_API_KEY", "")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "cinematch")
@@ -775,7 +785,6 @@ def watched_stats():
             g = str(row.get(col, "")).strip()
             if g and g != "nan":
                 genre_rows.append({"genre": g.title(), "score": row["My Score"]})
-    import pandas as pd
     gdf = pd.DataFrame(genre_rows)
     genre_stats = []
     if not gdf.empty:
