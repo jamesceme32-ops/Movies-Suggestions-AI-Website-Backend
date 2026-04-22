@@ -18,7 +18,7 @@
       --gold-dim:     #a07820;
       --cyan:         #40c8f0;
       --cyan-dim:     #1a5a70;
-      --panel:        rgba(13,31,60,0.08);
+      --panel:        rgba(13,31,60,0.9);
       --panel-border: rgba(64,200,240,0.25);
       --glow-gold:    0 0 20px rgba(240,192,64,0.3);
       --glow-cyan:    0 0 20px rgba(64,200,240,0.3);
@@ -101,7 +101,7 @@
 
     /* Stats */
     .stats-row { display:flex; gap:16px; flex-wrap:wrap; margin-bottom:8px; }
-    .stat-chip { font-family:'Inter',sans-serif; font-size:.8rem; color:var(--dim-white); background:rgba(13,31,60,.88); border:1px solid var(--panel-border); border-radius:20px; padding:4px 14px; }
+    .stat-chip { font-family:'Inter',sans-serif; font-size:.8rem; color:var(--dim-white); background:rgba(13,31,60,.9); border:1px solid var(--panel-border); border-radius:20px; padding:4px 14px; }
     .stat-chip strong { color:var(--gold); }
 
     /* Table */
@@ -109,7 +109,7 @@
     .results-count strong { color:var(--gold); }
     .table-wrap { overflow-x:auto; border-radius:8px; border:1px solid var(--panel-border); }
     table { width:100%; border-collapse:collapse; font-size:.88rem; }
-    thead th { background:rgba(13,31,60,.09); color:var(--cyan); font-family:'Playfair Display',serif; font-size:.68rem; font-weight:700; letter-spacing:.04em; padding:12px 12px; text-align:left; border-bottom:1px solid var(--panel-border); user-select:none; white-space:nowrap; }
+    thead th { background:rgba(13,31,60,.9); color:var(--cyan); font-family:'Playfair Display',serif; font-size:.68rem; font-weight:700; letter-spacing:.04em; padding:12px 12px; text-align:left; border-bottom:1px solid var(--panel-border); user-select:none; white-space:nowrap; }
     thead th.sortable { cursor:pointer; }
     thead th.sortable:hover { color:var(--gold); }
     tbody tr { border-bottom:1px solid rgba(64,200,240,.06); transition:background .15s; background:rgba(13,31,60,0.72); }
@@ -141,7 +141,7 @@
     th.sorted .sort-arrow { opacity:1; color:var(--gold); }
 
 
-    .details-row td { background:rgba(13,31,60,0.72) !important; }
+    .details-row td { background:rgba(13,31,60,0.072) !important; }
     ::-webkit-scrollbar { width:6px; height:6px; }
     ::-webkit-scrollbar-track { background:var(--space-black); }
     ::-webkit-scrollbar-thumb { background:var(--cyan-dim); border-radius:3px; }
