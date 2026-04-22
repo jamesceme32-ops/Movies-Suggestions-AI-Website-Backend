@@ -453,7 +453,7 @@
           <div class="eh-meta">${m.genre||''} ${m.my_score!=null?'· Score: '+m.my_score+'/10':''} ${m.watched?'· Watched':'· Unwatched'}</div></div>
           <span class="eh-arrow">▼</span>
         </div>
-        <div class="edit-body" data-orig-title="${m.title}" data-orig-year="${m.year||''}">
+        <div class="edit-body" data-orig-title="${m.title.replace(/"/g, '&quot;')}" data-orig-year="${m.year||''}" data-orig-idx="${i}">
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
             <div>
               <div class="form-label">Title</div>
@@ -504,28 +504,51 @@
   }
 
   async function saveEdit(btn) {
-    const body=btn.closest('.edit-body');
-    const orig_title=body.dataset.origTitle; const orig_year=body.dataset.origYear;
-    const title   = body.querySelector('.ef-title').value.trim();
-    const year    = body.querySelector('.ef-year').value.trim();
-    const genre   = body.querySelector('.ef-genre').value.trim();
-    const duration= body.querySelector('.ef-duration').value.trim();
-    const watched =body.querySelector('input[type="checkbox"]').checked;
-    const scoreBtn=body.querySelector('.score-btn.active');
-    const my_score=scoreBtn?parseInt(scoreBtn.textContent):null;
+    const body      = btn.closest('.edit-body');
+    const orig_title= body.dataset.origTitle;
+    const orig_year = body.dataset.origYear;
+    const orig_idx  = parseInt(body.dataset.origIdx);
+    const title     = body.querySelector('.ef-title').value.trim();
+    const year      = body.querySelector('.ef-year').value.trim();
+    const genre     = body.querySelector('.ef-genre').value.trim();
+    const duration  = body.querySelector('.ef-duration').value.trim();
+    const watched   = body.querySelector('input[type="checkbox"]').checked;
+    const scoreBtn  = body.querySelector('.score-btn.active');
+    const my_score  = scoreBtn ? parseInt(scoreBtn.textContent) : null;
     if (!title) { showFlash('Title cannot be empty.', false); return; }
+    // Use index-based lookup for reliability
+    const lookup_title = !isNaN(orig_idx) && allMovies[orig_idx]
+                         ? allMovies[orig_idx].title
+                         : orig_title;
+    const lookup_year  = !isNaN(orig_idx) && allMovies[orig_idx]
+                         ? allMovies[orig_idx].year
+                         : (orig_year || null);
     try {
-      const res=await fetch('/api/edit_movie',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({orig_title,orig_year:orig_year||null,title,year:year||null,genre,duration,watched,my_score})});
-      const data=await res.json();
-      if(data.success){
-        showFlash(`✅ "${title}" updated!`,true);
-        // update local cache
-        const m=allMovies.find(x=>x.title===orig_title&&String(x.year||'')===String(orig_year||''));
-        if(m){m.title=title;m.year=year?parseInt(year):null;m.genre=genre;m.duration=duration;m.watched=watched;m.my_score=my_score;}
+      const res = await fetch('/api/edit_movie', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          orig_title: lookup_title,
+          orig_year:  lookup_year,
+          title, year: year || null, genre, duration, watched, my_score
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showFlash(`✅ "${title}" updated!`, true);
+        if (!isNaN(orig_idx) && allMovies[orig_idx]) {
+          allMovies[orig_idx].title    = title;
+          allMovies[orig_idx].year     = year ? parseInt(year) : null;
+          allMovies[orig_idx].genre    = genre;
+          allMovies[orig_idx].duration = duration;
+          allMovies[orig_idx].watched  = watched;
+          allMovies[orig_idx].my_score = my_score;
+        }
         renderEdit(document.getElementById('editSearch').value);
-      } else {showFlash(data.error||'Failed.',false);}
-    } catch(e){showFlash('Something went wrong.',false);}
+      } else {
+        showFlash(data.error || 'Failed.', false);
+      }
+    } catch(e) { showFlash('Something went wrong.', false); }
   }
 
   document.getElementById('editSearch').addEventListener('input', e => { if(editLoaded) renderEdit(e.target.value); });

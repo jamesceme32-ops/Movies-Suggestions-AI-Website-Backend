@@ -94,7 +94,7 @@
 
     /* Toggle buttons */
     .toggle-group { display:flex; flex-wrap:wrap; gap:8px; }
-    .toggle-btn { font-family:'Inter',sans-serif; font-size:.82rem; font-weight:500; padding:6px 14px; border-radius:6px; border:1px solid var(--panel-border); background:rgba(13,31,60,0.55); color:var(--dim-white); cursor:pointer; transition:all .18s; user-select:none; }
+    .toggle-btn { font-family:'Inter',sans-serif; font-size:.82rem; font-weight:500; padding:6px 14px; border-radius:6px; border:1px solid var(--panel-border); background:rgba(13,31,60,0.38); color:var(--dim-white); cursor:pointer; transition:all .18s; user-select:none; }
     .toggle-btn:hover { border-color:var(--cyan); color:var(--star-white); }
     .toggle-btn.active { background:rgba(64,200,240,.14); border-color:var(--cyan); color:var(--cyan); }
     .toggle-btn.active-gold { background:rgba(240,192,64,.12); border-color:var(--gold); color:var(--gold); }
@@ -112,7 +112,7 @@
     thead th { background:rgba(13,31,60,.9); color:var(--cyan); font-family:'Playfair Display',serif; font-size:.68rem; font-weight:700; letter-spacing:.04em; padding:12px 12px; text-align:left; border-bottom:1px solid var(--panel-border); user-select:none; white-space:nowrap; }
     thead th.sortable { cursor:pointer; }
     thead th.sortable:hover { color:var(--gold); }
-    tbody tr { border-bottom:1px solid rgba(64,200,240,.06); transition:background .15s; background:rgba(13,31,60,0.50); }
+    tbody tr { border-bottom:1px solid rgba(64,200,240,.06); transition:background .15s; background:rgba(13,31,60,0.38); }
     tbody tr:hover { background:rgba(64,200,240,.08); }
     tbody td { padding:10px 12px; color:var(--star-white); vertical-align:middle; }
 
@@ -141,13 +141,13 @@
     th.sorted .sort-arrow { opacity:1; color:var(--gold); }
 
 
-    .details-row td { background:rgba(13,31,60,0.50) !important; }
+    .details-row td { background:rgba(13,31,60,0.38) !important; }
     ::-webkit-scrollbar { width:6px; height:6px; }
     ::-webkit-scrollbar-track { background:var(--space-black); }
     ::-webkit-scrollbar-thumb { background:var(--cyan-dim); border-radius:3px; }
     ::-webkit-scrollbar-thumb:hover { background:var(--cyan); }
 
-    .details-row td { background:rgba(13,31,60,0.50) !important; }
+    .details-row td { background:rgba(13,31,60,0.38) !important; }
 
     .btn-secondary-filled {
       background:rgba(13,31,60,0.75);
@@ -164,7 +164,7 @@
 <body>
   <!-- Background video — upload background.mp4 to R2 and set URL below -->
   <video id="bg-video" autoplay muted loop playsinline>
-    <source src="https://cdn.jzcinematch.com/backgroundv4.mp4" type="video/mp4">
+    <source src="https://YOUR_R2_PUBLIC_URL/background.mp4" type="video/mp4">
   </video>
 
   <!-- Poster lightbox -->
