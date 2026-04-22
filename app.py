@@ -349,7 +349,15 @@ def omdb_by_title(title: str, year=None) -> dict:
 
 def omdb_search(query, year=""):
     """Search OMDb by title — used by the Add Movie search tab."""
-
+    if not OMDB_API_KEY: return []
+    try:
+        params = {"apikey": OMDB_API_KEY, "s": query, "type": "movie"}
+        if year: params["y"] = year
+        r = requests.get("https://www.omdbapi.com/", params=params, timeout=8)
+        d = r.json()
+        if d.get("Response") == "True": return d.get("Search", [])
+    except Exception: pass
+    return []
 
 
 def omdb_details(imdb_id):
