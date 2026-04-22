@@ -855,12 +855,15 @@ def api_edit_movie():
         db = get_db(); movies = db.get("movies",[])[:]
         # Find by original title+year
         orig_title = data.get("orig_title","").lower().strip()
-        orig_year  = str(data.get("orig_year") or "")
+        orig_year  = str(data.get("orig_year") or "").strip()
         updated = False
         for m in movies:
-            m_year = str(m.get("year") or "")
-            if (m.get("title","").lower().strip() == orig_title and
-                    m_year == orig_year):
+            m_year  = str(m.get("year") or "").strip()
+            m_title = m.get("title","").lower().strip()
+            # Match on title (normalized) + year, OR just title if year is missing
+            title_match = m_title == orig_title
+            year_match  = m_year == orig_year or not orig_year or not m_year
+            if title_match and year_match:
                 if "my_score"  in data: m["my_score"]  = data["my_score"]
                 if "watched"   in data: m["watched"]   = bool(data["watched"])
                 if "genre"     in data: m["genre"]     = data["genre"].replace(", ","/")
@@ -1090,6 +1093,38 @@ def admin_debug():
 
 
 
+
+
+@app.route("/admin/missing-movies")
+@admin_required
+def admin_missing_movies():
+    """List all movies still missing IMDb data with what OMDb returns for each."""
+    db     = r2_storage.load_movies_db()
+    movies = db.get("movies", [])
+    missing = [m for m in movies if _needs_refresh(m)]
+
+    results = []
+    for m in missing:
+        title = m.get("title","")
+        year  = m.get("year")
+        omdb_resp = None
+        if OMDB_API_KEY:
+            try:
+                r = requests.get("https://www.omdbapi.com/",
+                    params={"apikey": OMDB_API_KEY, "t": title,
+                            "y": str(year) if year else "", "type": "movie"},
+                    timeout=6)
+                omdb_resp = r.json().get("Response"), r.json().get("Error",""), r.json().get("Title","")
+            except Exception as e:
+                omdb_resp = ("error", str(e), "")
+        results.append({
+            "title": title, "year": year,
+            "omdb_found": omdb_resp[0] if omdb_resp else "not tested",
+            "omdb_error": omdb_resp[1] if omdb_resp else "",
+            "omdb_matched_title": omdb_resp[2] if omdb_resp else "",
+        })
+
+    return jsonify({"total_missing": len(missing), "movies": results})
 
 @app.route("/admin/omdb-diag")
 @admin_required
