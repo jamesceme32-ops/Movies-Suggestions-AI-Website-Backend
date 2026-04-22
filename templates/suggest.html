@@ -230,6 +230,7 @@
 
 {% block scripts %}
 <script>
+document.addEventListener("DOMContentLoaded", function() {
   function single(gId,iId,cls){
     document.querySelectorAll(`#${gId} .toggle-btn`).forEach(b=>{
       b.addEventListener('click',()=>{
@@ -292,5 +293,6 @@
       });
     });
   }
+}); // end DOMContentLoaded
 </script>
 {% endblock %}

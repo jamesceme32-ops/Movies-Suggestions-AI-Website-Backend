@@ -171,7 +171,7 @@
 <body>
   <!-- Background video — upload background.mp4 to R2 and set URL below -->
   <video id="bg-video" autoplay muted loop playsinline>
-    <source src="https://cdn.jzcinematch.com/backgroundv6.mp4" type="video/mp4">
+    <source src="https://YOUR_R2_PUBLIC_URL/background.mp4" type="video/mp4">
   </video>
 
   <!-- Poster lightbox -->
@@ -193,7 +193,7 @@
   {% block scripts %}{% endblock %}
 
   <script>
-    // ── Poster Modal ──────────────────────────────────────────────────────
+    // ── Poster Modal ─────────────────────────────────────────────────────
     function openPosterModal(src, title) {
       document.getElementById('poster-modal-img').src = src;
       document.getElementById('poster-modal-img').alt = title || '';
@@ -207,59 +207,21 @@
     }
     document.addEventListener('keydown', e => { if(e.key === 'Escape') closePosterModal(); });
 
-    // ── Seamless video navigation ─────────────────────────────────────────
-    // Intercept internal link clicks so the video never stops playing
-    document.addEventListener('click', function(e) {
-      const a = e.target.closest('a[href]');
-      if (!a) return;
-      const href = a.getAttribute('href');
-      // Only intercept internal relative links
-      if (!href || href.startsWith('http') || href.startsWith('#') || 
-          href.startsWith('mailto') || a.target === '_blank') return;
-
-      e.preventDefault();
-      navigateTo(href);
-    });
-
-    async function navigateTo(url) {
+    // ── Video continuity across pages ─────────────────────────────────────
+    // Save timestamp before leaving, restore on load — video appears continuous
+    const vid = document.getElementById('bg-video');
+    if (vid) {
+      // Restore position from last page
       try {
-        const res  = await fetch(url, { headers: { 'X-SPA': '1' } });
-        const html = await res.text();
-        const parser  = new DOMParser();
-        const newDoc  = parser.parseFromString(html, 'text/html');
+        const t = parseFloat(sessionStorage.getItem('bgVideoTime') || '0');
+        if (t > 0) vid.currentTime = t;
+      } catch(e) {}
 
-        // Swap page content
-        document.querySelector('.page').innerHTML =
-          newDoc.querySelector('.page')?.innerHTML || '';
-
-        // Swap title
-        document.title = newDoc.title;
-
-        // Swap nav active state
-        const newNav = newDoc.querySelector('nav');
-        if (newNav) document.querySelector('nav').innerHTML = newNav.innerHTML;
-
-        // Update URL
-        history.pushState({url}, '', url);
-
-        // Re-run any inline scripts in the new content
-        document.querySelectorAll('.page script').forEach(old => {
-          const s = document.createElement('script');
-          s.textContent = old.textContent;
-          old.replaceWith(s);
-        });
-
-        window.scrollTo(0, 0);
-      } catch(e) {
-        // Fallback to normal navigation on error
-        window.location.href = url;
-      }
+      // Save position before navigating away
+      window.addEventListener('beforeunload', () => {
+        try { sessionStorage.setItem('bgVideoTime', vid.currentTime); } catch(e) {}
+      });
     }
-
-    // Handle browser back/forward
-    window.addEventListener('popstate', e => {
-      if (e.state?.url) navigateTo(e.state.url);
-    });
   </script>
 
 </body>

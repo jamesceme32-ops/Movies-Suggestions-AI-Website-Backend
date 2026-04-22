@@ -158,6 +158,7 @@
 
 {% block scripts %}
 <script>
+document.addEventListener("DOMContentLoaded", function() {
   document.querySelectorAll('.title-btn').forEach(btn=>{
     btn.addEventListener('click',()=>{
       const row=document.getElementById(`details-${btn.dataset.idx}`);
@@ -185,5 +186,6 @@
       });
     });
   }
+}); // end DOMContentLoaded
 </script>
 {% endblock %}
