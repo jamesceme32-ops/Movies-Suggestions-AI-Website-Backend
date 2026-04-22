@@ -238,7 +238,7 @@
         const newPage = newDoc.querySelector('.page');
         if (!newPage) { window.location.href = url; return; }
 
-        // ── Swap page-specific <style> tags from {% block head %} ─────────
+        // ── Swap page-specific <style> tags ─────────────────────────────────
         // Remove previous page styles (all except the first base style)
         document.querySelectorAll('style[data-page-style]').forEach(s => s.remove());
         // Add new page styles (skip the first <style> which is the base)
