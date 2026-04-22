@@ -339,14 +339,19 @@
     selectedMovie = null;
     try {
       var res = await fetch(`/api/search_movie?q=${encodeURIComponent(q)}${y?'&year='+y:''}`, { credentials: 'same-origin' });
-      if (res.redirected || res.url.includes('/admin/login')) {
+      // Just try to parse JSON — if auth fails, server returns HTML and json() throws
+      var text = await res.text();
+      var data;
+      try {
+        data = JSON.parse(text);
+      } catch(e) {
+        // Got HTML back (likely login redirect)
         document.getElementById('searching').style.display = 'none';
         document.getElementById('no-results').textContent = 'Session expired — please log in again.';
         document.getElementById('no-results').style.display = 'block';
         setTimeout(() => window.location.href = '/admin/login?next=/add', 1500);
         return;
       }
-      var data = await res.json();
       document.getElementById('searching').style.display = 'none';
       if (data.error) {
         document.getElementById('no-results').textContent = '⚠️ ' + data.error;
@@ -527,9 +532,23 @@
   async function ensureEditLoaded() {
     if (editLoaded) return;
     editLoaded = true;
-    var res  = await fetch('/api/all_movies');
-    var data = await res.json();
-    editAllMovies = data.movies || [];
+    try {
+      var res  = await fetch('/api/all_movies', { credentials: 'same-origin' });
+      var text = await res.text();
+      try {
+        var data = JSON.parse(text);
+        editAllMovies = data.movies || [];
+      } catch(e) {
+        // Auth redirect — got HTML
+        editLoaded = false;
+        editAllMovies = [];
+        document.getElementById('editResults').innerHTML =
+          '<div style="color:#fca5a5;padding:8px;">Session expired. <a href="/admin/login?next=/add" style="color:var(--gold);">Log in again</a></div>';
+      }
+    } catch(e) {
+      editLoaded = false;
+      editAllMovies = [];
+    }
   }
 
   async function doEditSearch() {

@@ -293,6 +293,65 @@
       _spaNavigate(href);
     });
 
+    // Intercept form submissions so the video keeps playing
+    document.addEventListener('submit', async function(e) {
+      const form = e.target;
+      const action = form.getAttribute('action') || window.location.pathname;
+      if (!_shouldIntercept(action)) return;
+      if (form.enctype === 'multipart/form-data') return; // file uploads need real submit
+      e.preventDefault();
+
+      try {
+        const page = document.querySelector('.page');
+        page.style.opacity = '0';
+        await new Promise(r => setTimeout(r, 20));
+
+        const formData = new FormData(form);
+        const res  = await fetch(action, {
+          method: form.method || 'POST',
+          body:   formData,
+          credentials: 'same-origin',
+        });
+        if (!res.ok) { form.submit(); return; }
+        const html    = await res.text();
+        const parser  = new DOMParser();
+        const newDoc  = parser.parseFromString(html, 'text/html');
+        const newPage = newDoc.querySelector('.page');
+        if (!newPage) { form.submit(); return; }
+
+        // Swap styles
+        document.querySelectorAll('style[data-page-style]').forEach(s => s.remove());
+        Array.from(newDoc.querySelectorAll('head style')).slice(1).forEach(st => {
+          const s = document.createElement('style');
+          s.setAttribute('data-page-style', '1');
+          s.textContent = st.textContent;
+          document.head.appendChild(s);
+        });
+
+        document.title = newDoc.title;
+        const scripts = Array.from(newPage.querySelectorAll('script'));
+        scripts.forEach(s => s.remove());
+        document.querySelectorAll('script[data-spa]').forEach(s => s.remove());
+        page.innerHTML = newPage.innerHTML;
+
+        for (const old of scripts) {
+          const s = document.createElement('script');
+          s.setAttribute('data-spa', '1');
+          s.textContent = old.textContent;
+          document.body.appendChild(s);
+        }
+
+        history.pushState({ url: action }, '', action);
+        window.scrollTo(0, 0);
+        page.style.transition = 'opacity 0.18s ease';
+        page.style.opacity    = '1';
+        setTimeout(() => { page.style.transition = ''; }, 220);
+
+      } catch(e) {
+        form.submit(); // fallback
+      }
+    });
+
     // Handle browser back/forward
     window.addEventListener('popstate', e => {
       if (e.state?.url) _spaNavigate(e.state.url);
