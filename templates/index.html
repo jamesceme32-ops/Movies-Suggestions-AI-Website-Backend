@@ -6,16 +6,17 @@
   .hero { text-align:center; padding:72px 0 48px; }
   .hero-title { font-family:'Space Grotesk',sans-serif; font-size:clamp(2rem,5vw,3.2rem); font-weight:700; color:var(--star-white); margin-bottom:14px; line-height:1.2; }
   .hero-title em { color:var(--gold); font-style:normal; }
-  .hero-sub { font-family:'Inter',sans-serif; font-size:1rem; color:var(--dim-white); margin-bottom:40px; line-height:1.7; max-width:560px; margin-left:auto; margin-right:auto; }
+  .hero-sub { font-family:'Inter',sans-serif; font-size:1rem; color:rgba(255,255,255,0.85); margin-bottom:40px; line-height:1.7; max-width:380px; margin-left:auto; margin-right:auto; text-shadow:0 1px 12px rgba(0,0,0,0.95), 0 0 30px rgba(0,0,0,0.8); }
   .hero-text-box {
     display:inline-block;
-    background:rgba(3,5,15,0.60);
+    background:rgba(3,5,15,0.70);
     border-radius:16px;
-    padding:28px 40px 20px;
+    padding:28px 36px 20px;
     margin-bottom:32px;
-    backdrop-filter:blur(4px);
+    backdrop-filter:blur(8px);
+    border:1px solid rgba(255,255,255,0.08);
   }
-  .hero-text-box .hero-sub { margin-bottom:0; }
+  .hero-text-box .hero-sub { margin-bottom:0; max-width:340px; }
   .hero-stats { display:flex; justify-content:center; gap:16px; flex-wrap:wrap; margin-bottom:36px; }
   .hero-cta { display:flex; justify-content:center; gap:12px; flex-wrap:wrap; }
 

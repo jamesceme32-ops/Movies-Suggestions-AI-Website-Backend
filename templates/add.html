@@ -286,7 +286,7 @@
       btn.classList.add('active');
       document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
       if (btn.dataset.tab === 'top10' && !poolLoaded) loadPool();
-      if (btn.dataset.tab === 'edit'  && !editLoaded) loadEdit();
+      if (btn.dataset.tab === 'edit') { /* edit loads on search */ }
     });
   });
 
@@ -474,8 +474,6 @@
   // ══════════════════════════════════════════════
   //  TAB 3: EDIT
   // ══════════════════════════════════════════════
-  let editLoaded=false, allMovies=[];
-
   // ══ EDIT TAB ══════════════════════════════════════════════════════════
   let editLoaded = false;
   let editAllMovies = [];  // separate from poolMovies to avoid conflicts

@@ -4,7 +4,7 @@
 {% block head %}
 <style>
   .top-header { padding:40px 0 24px; display:flex; align-items:flex-end; justify-content:space-between; flex-wrap:wrap; gap:16px; }
-  .top-title { font-family:'Playfair Display',serif; font-size:1.6rem; font-weight:700; letter-spacing:.02em; }
+  .top-title { font-family:'Playfair Display',serif; font-size:1.6rem; font-weight:700; letter-spacing:.02em; text-shadow:0 2px 16px rgba(0,0,0,0.9), 0 0 40px rgba(0,0,0,0.7); }
   .top-title em { color:var(--gold); font-style:normal; }
   table { table-layout:auto; }
   thead th { white-space:normal !important; vertical-align:bottom; }
@@ -61,7 +61,7 @@
 <div class="top-header">
   <div>
     <h2 class="top-title">JZ's <em>Top Movies</em></h2>
-    <p style="font-size:.85rem;color:var(--dim-white);margin-top:6px;">{{ total_rated }} reviewed movies — click any title for details</p>
+    <p style="font-size:.85rem;color:var(--dim-white);margin-top:6px;text-shadow:0 1px 8px rgba(0,0,0,0.8);">{{ total_rated }} reviewed movies — click any title for details</p>
   </div>
   <a href="/suggest" class="btn btn-secondary btn-sm">← Back to Recommendations</a>
 </div>
