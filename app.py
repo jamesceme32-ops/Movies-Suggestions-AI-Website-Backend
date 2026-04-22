@@ -355,8 +355,21 @@ def tmdb_cast_and_poster(imdb_id: str) -> dict:
         cast_list = cr.json().get("cast", [])
         top6 = ", ".join(c["name"] for c in cast_list[:8])
 
+        # Language from TMDb
+        lang_code = results[0].get("original_language", "")
+        lang_map  = {
+            "en": "English", "fr": "French", "de": "German", "es": "Spanish",
+            "it": "Italian", "ja": "Japanese", "ko": "Korean", "pt": "Portuguese",
+            "ru": "Russian", "zh": "Chinese", "ar": "Arabic", "hi": "Hindi",
+            "sv": "Swedish", "da": "Danish", "nl": "Dutch", "pl": "Polish",
+            "fi": "Finnish", "no": "Norwegian", "tr": "Turkish", "he": "Hebrew",
+            "hu": "Hungarian", "cs": "Czech", "ro": "Romanian", "uk": "Ukrainian",
+        }
+        language = lang_map.get(lang_code, lang_code.upper() if lang_code else "")
+
         return {
             "cast":       top6,
+            "language":   language,
             "poster_url": f"https://image.tmdb.org/t/p/w300{poster_path}" if poster_path else "",
         }
     except Exception:
@@ -1143,6 +1156,8 @@ def _tmdb_refresh_background():
                 filled += 1
             if tmdb.get("poster_url"):
                 m["poster_url"] = tmdb["poster_url"]
+            if tmdb.get("language"):
+                m["language"] = tmdb["language"]
 
             TMDB_REFRESH_STATUS["done"]   = i + 1
             TMDB_REFRESH_STATUS["filled"] = filled
