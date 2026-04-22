@@ -33,11 +33,23 @@
   .col-num   { min-width:60px;  white-space:nowrap; text-align:right; }
   .col-links { min-width:105px; white-space:nowrap; }
 
+
+  .top-subtab {
+    font-family:'Playfair Display',serif; font-size:.84rem; font-weight:600;
+    padding:10px 20px; background:transparent; border:none;
+    border-bottom:2px solid transparent; color:var(--dim-white);
+    cursor:pointer; transition:all .18s; margin-bottom:-1px;
+  }
+  .top-subtab:hover { color:var(--star-white); }
+  .top-subtab.active { color:var(--gold); border-bottom-color:var(--gold); }
+  #genre-tbody tr, #era-tbody tr { border-bottom:1px solid rgba(64,200,240,.06); }
+  #genre-tbody td, #era-tbody td { padding:8px 12px; color:var(--star-white); }
+  .stat-bar { height:6px; border-radius:3px; background:linear-gradient(90deg,var(--cyan-dim),var(--cyan)); display:inline-block; margin-left:8px; vertical-align:middle; }
   .expand-btn { display:inline-flex; align-items:center; gap:4px; font-size:.72rem; color:var(--dim-white); background:none; border:none; cursor:pointer; padding:3px 0 0; font-family:'Inter',sans-serif; transition:color .15s; }
   .expand-btn:hover { color:var(--cyan); }
   .expand-btn .arrow { transition:transform .2s; display:inline-block; }
   .expand-btn.open .arrow { transform:rotate(180deg); }
-  .details-row td { background:rgba(7,13,31,.7); border-bottom:1px solid var(--panel-border) !important; padding:12px 16px !important; border-left:none !important; }
+  .details-row td { background:rgba(13,31,60,0.58); border-bottom:1px solid var(--panel-border) !important; padding:12px 16px !important; border-left:none !important; }
   .details-inner { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; font-size:.83rem; }
   @media(max-width:700px){ .details-inner { grid-template-columns:1fr; } }
   .details-inner strong { color:var(--cyan); font-weight:600; display:block; margin-bottom:3px; font-size:.72rem; text-transform:uppercase; letter-spacing:.06em; }
@@ -59,13 +71,21 @@
 
 {% block content %}
 <div class="top-header">
-  <div>
+  <div style="background:rgba(3,5,15,0.65);padding:14px 20px;border-radius:10px;backdrop-filter:blur(6px);">
     <h2 class="top-title">JZ's <em>Top Movies</em></h2>
-    <p style="font-size:.85rem;color:var(--dim-white);margin-top:6px;text-shadow:0 1px 8px rgba(0,0,0,0.8);">{{ total_rated }} reviewed movies — click any title for details</p>
+    <p style="font-size:.85rem;color:rgba(255,255,255,.8);margin-top:6px;">{{ total_rated }} reviewed movies — click any title for details</p>
   </div>
-  <a href="/suggest" class="btn btn-secondary btn-sm">← Back to Recommendations</a>
+  <a href="/suggest" class="btn btn-secondary-filled btn-sm">← Back to Recommendations</a>
 </div>
 
+<!-- Sub-tabs -->
+<div style="display:flex;gap:0;border-bottom:1px solid var(--panel-border);margin-bottom:20px;">
+  <button class="top-subtab active" data-subtab="movies" onclick="switchSubtab('movies',this)">🎬 Top Movies</button>
+  <button class="top-subtab" data-subtab="stats" onclick="switchSubtab('stats',this)">📊 My Stats</button>
+</div>
+
+<!-- Movies tab -->
+<div id="subtab-movies">
 <div class="panel">
   {% if movies %}
   <div class="table-wrap">
@@ -154,10 +174,95 @@
   <div style="text-align:center;padding:48px;color:var(--dim-white);font-size:.9rem;"><span style="font-size:2rem;display:block;margin-bottom:12px;">🎬</span>No reviewed movies yet.</div>
   {% endif %}
 </div>
+</div><!-- end subtab-movies -->
+
+<!-- Stats tab -->
+<div id="subtab-stats" style="display:none;">
+<div class="panel">
+  <div class="panel-title">GENRE BREAKDOWN</div>
+  <div id="genre-stats-loading" style="color:var(--dim-white);font-size:.85rem;padding:12px;">Loading...</div>
+  <div id="genre-stats-table" style="display:none;">
+    <table id="genre-table" style="width:100%;border-collapse:collapse;font-size:.85rem;">
+      <thead>
+        <tr>
+          <th style="text-align:left;padding:8px 12px;color:var(--cyan);font-family:'Playfair Display',serif;border-bottom:1px solid var(--panel-border);">Genre</th>
+          <th style="text-align:right;padding:8px 12px;color:var(--cyan);font-family:'Playfair Display',serif;border-bottom:1px solid var(--panel-border);">Movies</th>
+          <th style="text-align:right;padding:8px 12px;color:var(--cyan);font-family:'Playfair Display',serif;border-bottom:1px solid var(--panel-border);">Avg Score</th>
+        </tr>
+      </thead>
+      <tbody id="genre-tbody"></tbody>
+    </table>
+  </div>
+</div>
+<div class="panel" style="margin-top:0;">
+  <div class="panel-title">ERA BREAKDOWN</div>
+  <div id="era-stats-table" style="display:none;">
+    <table id="era-table" style="width:100%;border-collapse:collapse;font-size:.85rem;">
+      <thead>
+        <tr>
+          <th style="text-align:left;padding:8px 12px;color:var(--cyan);font-family:'Playfair Display',serif;border-bottom:1px solid var(--panel-border);">Era</th>
+          <th style="text-align:right;padding:8px 12px;color:var(--cyan);font-family:'Playfair Display',serif;border-bottom:1px solid var(--panel-border);">Movies</th>
+          <th style="text-align:right;padding:8px 12px;color:var(--cyan);font-family:'Playfair Display',serif;border-bottom:1px solid var(--panel-border);">Avg Score</th>
+        </tr>
+      </thead>
+      <tbody id="era-tbody"></tbody>
+    </table>
+  </div>
+</div>
+</div><!-- end subtab-stats -->
 {% endblock %}
 
 {% block scripts %}
 <script>
+
+  let statsLoaded = false;
+
+  function switchSubtab(name, btn) {
+    document.querySelectorAll('.top-subtab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('subtab-movies').style.display = name === 'movies' ? 'block' : 'none';
+    document.getElementById('subtab-stats').style.display  = name === 'stats'  ? 'block' : 'none';
+    if (name === 'stats' && !statsLoaded) loadStats();
+  }
+
+  async function loadStats() {
+    statsLoaded = true;
+    try {
+      const res  = await fetch('/api/watched_stats');
+      const data = await res.json();
+
+      // Genre table
+      const gtbody = document.getElementById('genre-tbody');
+      const maxG   = Math.max(...data.genres.map(g => g.count), 1);
+      gtbody.innerHTML = data.genres.map(g => `
+        <tr>
+          <td>${g.name}</td>
+          <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--dim-white);">${g.count}
+            <span class="stat-bar" style="width:${Math.round(g.count/maxG*80)}px;"></span>
+          </td>
+          <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--gold);">${g.avg}</td>
+        </tr>`).join('');
+      document.getElementById('genre-stats-loading').style.display = 'none';
+      document.getElementById('genre-stats-table').style.display   = 'block';
+
+      // Era table
+      const etbody = document.getElementById('era-tbody');
+      const maxE   = Math.max(...data.eras.map(e => e.count), 1);
+      etbody.innerHTML = data.eras.map(e => `
+        <tr>
+          <td>${e.name}</td>
+          <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--dim-white);">${e.count}
+            <span class="stat-bar" style="width:${Math.round(e.count/maxE*80)}px;"></span>
+          </td>
+          <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--gold);">${e.avg}</td>
+        </tr>`).join('');
+      document.getElementById('era-stats-table').style.display = 'block';
+
+    } catch(e) {
+      document.getElementById('genre-stats-loading').textContent = 'Failed to load stats.';
+    }
+  }
+
 document.addEventListener("DOMContentLoaded", function() {
   document.querySelectorAll('.title-btn').forEach(btn=>{
     btn.addEventListener('click',()=>{

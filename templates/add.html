@@ -278,6 +278,7 @@
 
 {% block scripts %}
 <script>
+document.addEventListener("DOMContentLoaded", function() {
   // ── Tabs ──────────────────────────────────────────────────────────────────
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -440,15 +441,15 @@
 
   document.getElementById('poolSearch').addEventListener('input', e => renderPool(e.target.value));
 
-  function addToTop10(key) {
+  window.addToTop10 = function addToTop10(key) {
     if (top10Keys.includes(key)) return;
     if (top10Keys.length >= 10) { showFlash('Top 10 is full. Remove one first.', false); return; }
     top10Keys.push(key); renderPool(document.getElementById('poolSearch').value); renderTop10();
   }
-  function removeTop10(key) {
+  window.removeTop10 = function removeTop10(key) {
     top10Keys = top10Keys.filter(k=>k!==key); renderPool(document.getElementById('poolSearch').value); renderTop10();
   }
-  function moveTop10(key, dir) {
+  window.moveTop10 = function moveTop10(key, dir) {
     const i = top10Keys.indexOf(key); if(i===-1) return;
     const ni = i+dir; if(ni<0||ni>=top10Keys.length) return;
     [top10Keys[i], top10Keys[ni]] = [top10Keys[ni], top10Keys[i]];
@@ -513,7 +514,7 @@
       </div>`).join('');
   }
 
-  function openEditForm(m) {
+  window.openEditForm = function openEditForm(m) {
     editCurrentOrig = m;
     document.getElementById('editFormTitle').textContent = m.title + ' (' + (m.year||'?') + ')';
     document.getElementById('ef-title').value    = m.title || '';
@@ -534,7 +535,7 @@
     document.getElementById('editForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  function cancelEdit() {
+  window.cancelEdit = function cancelEdit() {
     editCurrentOrig = null;
     document.getElementById('editForm').style.display = 'none';
   }
