@@ -49,9 +49,9 @@ def invalidate_db():
     _DB_CACHE = None
 
 
-YEAR_BINS   = [1900, 1960, 1970, 1980, 1990, 2000, 2010, 2020, 2030]
-YEAR_LABELS = ["1900-1960", "1961-1970", "1971-1980", "1981-1990",
-               "1991-2000", "2001-2010", "2011-2020", "2021-Present"]
+YEAR_BINS   = [1900, 1940, 1950, 1960, 1970, 1980, 1990, 2000, 2010, 2020, 2030]
+YEAR_LABELS = ["1900-1940", "1941-1950", "1951-1960", "1961-1970", "1971-1980",
+               "1981-1990", "1991-2000", "2001-2010", "2011-2020", "2021-Present"]
 DUR_BINS   = [0, 60, 90, 120, 150, 180, float("inf")]
 DUR_LABELS = ["<1h", "1-1.5h", "1.5-2h", "2-2.5h", "2.5-3h", "3h+"]
 STYLES = {
@@ -461,22 +461,78 @@ def build_taste_profile(df):
     try:
         rated = df[df["My Score"].notna() & df["Watched"]].copy()
         if rated.empty: return {}
+
+        # Global mean — the prior we shrink toward for small samples
+        global_mean = rated["My Score"].mean()
+
+        def bayesian_avg(groups, C=None):
+            """
+            Bayesian average: (C * global_mean + n * group_mean) / (C + n)
+            C = confidence weight = avg group size (floor 3, ceil 15).
+            Small groups get pulled toward global_mean; large groups keep their average.
+            """
+            if not groups: return {}
+            counts = {k: len(v) for k, v in groups.items()}
+            means  = {k: v["My Score"].mean() for k, v in groups.items()}
+            if C is None:
+                avg_count = sum(counts.values()) / len(counts)
+                C = max(3, min(15, round(avg_count)))
+            result = {}
+            for k in groups:
+                n   = counts[k]
+                mu  = means[k]
+                result[k] = (C * global_mean + n * mu) / (C + n)
+            return result
+
         def norm_avg(scores):
+            """Normalize a dict of scores to [0, 1]."""
             if not scores: return {}
-            lo, hi = min(scores.values()), max(scores.values()); rng = hi-lo or 1
-            return {k: round((v-lo)/rng, 4) for k,v in scores.items()}
-        genre_rows = pd.concat([rated[["My Score"]].assign(genre=rated["genre1"]),
-                                 rated[["My Score"]].assign(genre=rated["genre2"])])
-        raw_genre = {g: grp["My Score"].mean() for g,grp in genre_rows.groupby("genre") if g}
-        raw_era   = {str(e): grp["My Score"].mean() for e,grp in rated.groupby("Year Range") if e and e!="nan"}
-        raw_dur   = {str(d): grp["My Score"].mean() for d,grp in rated.groupby("Duration Range") if d and d!="nan"}
+            lo, hi = min(scores.values()), max(scores.values())
+            rng = hi - lo or 1
+            return {k: round((v - lo) / rng, 4) for k, v in scores.items()}
+
+        # Build groups
+        genre_rows = pd.concat([
+            rated[["My Score"]].assign(genre=rated["genre1"]),
+            rated[["My Score"]].assign(genre=rated["genre2"]),
+        ])
+        genre_groups = {g: grp for g, grp in genre_rows.groupby("genre") if g and g != "nan"}
+        era_groups   = {str(e): grp for e, grp in rated.groupby("Year Range") if e and str(e) != "nan"}
+        dur_groups   = {str(d): grp for d, grp in rated.groupby("Duration Range") if d and str(d) != "nan"}
+
+        # Bayesian averages
+        bay_genre = bayesian_avg(genre_groups)
+        bay_era   = bayesian_avg(era_groups)
+        bay_dur   = bayesian_avg(dur_groups)
+
+        # Raw (simple) averages for display — so the UI shows honest numbers
+        raw_genre = {k: round(grp["My Score"].mean(), 2) for k, grp in genre_groups.items()}
+        raw_era   = {k: round(grp["My Score"].mean(), 2) for k, grp in era_groups.items()}
+        raw_dur   = {k: round(grp["My Score"].mean(), 2) for k, grp in dur_groups.items()}
+
+        # Count per category for display
+        cnt_genre = {k: len(v) for k, v in genre_groups.items()}
+        cnt_era   = {k: len(v) for k, v in era_groups.items()}
+
         both = rated.dropna(subset=["IMDB Rating"])
-        bias = float((both["My Score"]-both["IMDB Rating"]).mean()) if not both.empty else 0.0
-        return {"genre": norm_avg(raw_genre), "era": norm_avg(raw_era), "duration": norm_avg(raw_dur),
-                "bias": round(bias,3), "rated_count": len(rated),
-                "raw_genre": {k:round(v,2) for k,v in raw_genre.items()},
-                "raw_era":   {k:round(v,2) for k,v in raw_era.items()},
-                "raw_dur":   {k:round(v,2) for k,v in raw_dur.items()}}
+        bias = float((both["My Score"] - both["IMDB Rating"]).mean()) if not both.empty else 0.0
+
+        return {
+            # Normalized Bayesian scores — used for taste matching
+            "genre":    norm_avg(bay_genre),
+            "era":      norm_avg(bay_era),
+            "duration": norm_avg(bay_dur),
+            # Display values (simple averages)
+            "raw_genre": raw_genre,
+            "raw_era":   raw_era,
+            "raw_dur":   raw_dur,
+            # Counts
+            "cnt_genre": cnt_genre,
+            "cnt_era":   cnt_era,
+            "bias":          round(bias, 3),
+            "rated_count":   len(rated),
+            "global_mean":   round(global_mean, 2),
+        }
     except Exception: return {}
 
 def train_predictor(df):
@@ -630,11 +686,21 @@ def suggest():
     profile = store["profile"]; predicted = store["predicted"]
     def top(d, n=3): return ", ".join(k for k,_ in sorted(d.items(), key=lambda x:-x[1])[:n])
     bias = profile.get("bias", 0)
+    # For genres, sort by Bayesian-weighted score (already in "genre" key normalized)
+    # but show by raw average for display
+    raw_genre = profile.get("raw_genre", {})
+    cnt_genre = profile.get("cnt_genre", {})
+    # Top genres sorted by raw score, with count shown
+    top_genres_list = sorted(raw_genre.items(), key=lambda x: -x[1])[:3]
+    top_genres = ", ".join(f"{k} ({cnt_genre.get(k,0)})" for k,v in top_genres_list)
     profile_summary = {
-        "rated": profile.get("rated_count",0), "genres": top(profile.get("raw_genre",{})),
-        "eras": top(profile.get("raw_era",{})), "durs": top(profile.get("raw_dur",{}),2),
+        "rated": profile.get("rated_count",0),
+        "genres": top_genres,
+        "eras": top(profile.get("raw_era",{})),
+        "durs": top(profile.get("raw_dur",{}),2),
         "bias": (f"+{bias:.1f}" if bias>=0 else f"{bias:.1f}") + " vs IMDb",
         "ml": store["model"] is not None,
+        "global_mean": profile.get("global_mean", 0),
     }
     all_genres = extract_genres(df)
     results = []
@@ -685,6 +751,54 @@ def top_movies():
     others = [m for m in movies if not m["top10_rank"]]
     return render_template("top.html", movies=top10+others, total_rated=len(movies))
 
+
+
+@app.route("/api/watched_stats")
+def watched_stats():
+    """Genre and era breakdown for watched/reviewed movies."""
+    sid = get_sid()
+    if sid not in STORE:
+        if not load_store_from_db(sid):
+            return jsonify({"genres": [], "eras": []})
+    df = STORE[sid]["df"]
+    reviewed = df[df["My Score"].notna() & df["Watched"]].copy()
+    if reviewed.empty:
+        return jsonify({"genres": [], "eras": []})
+
+    # Genre stats
+    genre_rows = []
+    for col in ["genre1", "genre2"]:
+        for _, row in reviewed.iterrows():
+            g = str(row.get(col, "")).strip()
+            if g and g != "nan":
+                genre_rows.append({"genre": g.title(), "score": row["My Score"]})
+    import pandas as pd
+    gdf = pd.DataFrame(genre_rows)
+    genre_stats = []
+    if not gdf.empty:
+        for g, grp in gdf.groupby("genre"):
+            genre_stats.append({
+                "name":  g,
+                "count": len(grp),
+                "avg":   round(grp["score"].mean(), 2)
+            })
+        genre_stats.sort(key=lambda x: -x["count"])
+
+    # Era stats
+    era_stats = []
+    for era, grp in reviewed.groupby("Year Range"):
+        if era and era != "nan":
+            era_stats.append({
+                "name":  str(era),
+                "count": len(grp),
+                "avg":   round(grp["My Score"].mean(), 2)
+            })
+    # Sort by era label order
+    era_order = YEAR_LABELS
+    era_stats.sort(key=lambda x: era_order.index(x["name"]) if x["name"] in era_order else 99)
+
+    return jsonify({"genres": genre_stats, "eras": era_stats,
+                    "total_reviewed": len(reviewed)})
 
 @app.route("/reset")
 def reset():
