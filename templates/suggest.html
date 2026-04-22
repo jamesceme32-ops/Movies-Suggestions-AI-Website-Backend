@@ -4,14 +4,20 @@
 {% block head %}
 <style>
   .suggest-header { padding:40px 0 24px; display:flex; align-items:flex-end; justify-content:space-between; flex-wrap:wrap; gap:16px; }
-  .suggest-title { font-family:'Space Grotesk',sans-serif; font-size:1.6rem; font-weight:700; }
+  .suggest-title { font-family:'Playfair Display',serif; font-size:1.6rem; font-weight:700; letter-spacing:.02em; }
   .suggest-title em { color:var(--gold); font-style:normal; }
 
   .profile-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin-top:12px; }
   .profile-item { background:rgba(7,13,31,.5); border:1px solid var(--panel-border); border-radius:8px; padding:12px 16px; }
   .profile-item-label { font-size:.72rem; font-weight:500; color:var(--dim-white); letter-spacing:.06em; margin-bottom:4px; text-transform:uppercase; }
   .profile-item-value { font-size:.9rem; font-weight:500; color:var(--cyan); }
+  .profile-item-value { font-family:'DM Mono',monospace; }
   .ml-badge { display:inline-block; font-size:.65rem; font-weight:600; padding:2px 8px; border-radius:4px; background:rgba(64,200,240,.1); color:var(--cyan); border:1px solid var(--cyan-dim); vertical-align:middle; margin-left:6px; }
+
+  .poster-thumb { width:42px; min-width:42px; height:62px; object-fit:cover; border-radius:4px; cursor:zoom-in; transition:transform .15s; display:block; vertical-align:middle; }
+  .poster-thumb:hover { transform:scale(1.1); box-shadow:0 4px 16px rgba(0,0,0,.6); }
+  .poster-ph { width:42px; min-width:42px; height:62px; border-radius:4px; background:rgba(64,200,240,.07); border:1px solid var(--panel-border); display:flex; align-items:center; justify-content:center; font-size:1rem; color:var(--dim-white); }
+
   .filter-section { margin-bottom:20px; }
 
   /* Table */
@@ -43,23 +49,6 @@
   @media(max-width:700px){ .details-inner { grid-template-columns:1fr; } }
   .details-inner strong { color:var(--cyan); font-weight:600; display:block; margin-bottom:4px; font-size:.72rem; text-transform:uppercase; letter-spacing:.06em; }
   .details-inner p { color:var(--star-white); line-height:1.55; }
-
-
-  /* Poster thumbnail in table */
-  .poster-thumb {
-    width:40px; min-width:40px; height:60px;
-    object-fit:cover; border-radius:4px;
-    cursor:zoom-in; transition:transform .15s;
-    display:block;
-  }
-  .poster-thumb:hover { transform:scale(1.08); }
-  .poster-placeholder {
-    width:40px; min-width:40px; height:60px;
-    border-radius:4px; background:rgba(64,200,240,.07);
-    border:1px solid var(--panel-border);
-    display:flex; align-items:center; justify-content:center;
-    font-size:1.1rem; color:var(--dim-white);
-  }
 
   .form-actions { display:flex; align-items:center; gap:12px; margin-top:24px; flex-wrap:wrap; }
   .no-results { text-align:center; padding:48px; font-size:.9rem; color:var(--dim-white); }
@@ -143,7 +132,7 @@
     </div>
     <div class="filter-section" style="max-width:380px;">
       <label class="form-label">Actor / Director Filter</label>
-      <input type="text" name="actor" placeholder="Tom Hanks, Steven Spielberg, Johansson, etc." value="{{ form.actor or '' }}">
+      <input type="text" name="actor" placeholder="e.g. Tom Hanks, Steven Spielberg, Johansson, etc." value="{{ form.actor or '' }}">
     </div>
     <div class="form-actions">
       <button type="submit" class="btn btn-primary">◈ GET RECOMMENDATIONS</button>
@@ -162,7 +151,7 @@
     <table id="results-table">
       <thead>
         <tr>
-          <th class="nowrap" style="width:44px;"></th>
+          <th style="width:50px;"></th>
           <th class="sortable nowrap" data-col="0">Title <span class="sort-arrow">↕</span></th>
           <th class="sortable nowrap" data-col="1">Year <span class="sort-arrow">↕</span></th>
           <th class="sortable nowrap" data-col="2">Genre <span class="sort-arrow">↕</span></th>
@@ -190,15 +179,12 @@
       <tbody>
         {% for m in results %}
         <tr class="result-row" id="row-{{ loop.index0 }}">
-          <td style="padding:6px 8px;vertical-align:middle;width:44px;">
+          <td style="padding:6px 8px;width:50px;vertical-align:middle;">
             {% if m.poster_url %}
-            <img class="poster-thumb"
-                 src="{{ m.poster_url }}"
-                 alt="{{ m.title }}"
-                 onclick="openPosterModal('{{ m.poster_url }}','{{ m.title }}')"
-                 title="Click to enlarge">
+            <img class="poster-thumb" src="{{ m.poster_url }}" alt="{{ m.title }}"
+                 onclick="openPosterModal('{{ m.poster_url }}','{{ m.title }}')" title="Click to enlarge">
             {% else %}
-            <div class="poster-placeholder">🎬</div>
+            <div class="poster-ph">🎬</div>
             {% endif %}
           </td>
           <td class="col-title">

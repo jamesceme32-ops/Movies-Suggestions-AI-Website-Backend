@@ -6,7 +6,7 @@
   <title>{% block title %}JZ's Cinematch{% endblock %}</title>
   <link rel="icon" type="image/png" href="/static/favicon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Playfair+Display:wght@600;700&family=DM+Mono:ital,wght@0,400;0,500&family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
   <style>
     :root {
       --space-black:  #03050f;
@@ -18,8 +18,8 @@
       --gold-dim:     #a07820;
       --cyan:         #40c8f0;
       --cyan-dim:     #1a5a70;
-      --panel:        rgba(13,31,60,0.45);
-      --panel-border: rgba(64,200,240,0.2);
+      --panel:        rgba(13,31,60,0.42);
+      --panel-border: rgba(64,200,240,0.22);
       --glow-gold:    0 0 20px rgba(240,192,64,0.3);
       --glow-cyan:    0 0 20px rgba(64,200,240,0.3);
     }
@@ -29,20 +29,43 @@
       font-family:'Inter',sans-serif; font-weight:400; font-size:15px;
       min-height:100vh; overflow-x:hidden; position:relative;
     }
-    /* Video background handled by #bg-video element */
+    /* Video background replaces star pattern */
     body::before, body::after { display:none; }
+
+    #bg-video {
+      position:fixed; top:0; left:0; width:100%; height:100%;
+      object-fit:cover; z-index:-1; pointer-events:none;
+    }
+
+    /* Poster lightbox */
+    #poster-modal {
+      display:none; position:fixed; inset:0; z-index:9999;
+      background:rgba(0,0,0,.8); backdrop-filter:blur(6px);
+      align-items:center; justify-content:center; cursor:pointer;
+    }
+    #poster-modal.open { display:flex; }
+    #poster-modal img {
+      max-width:min(340px,90vw); max-height:88vh;
+      border-radius:12px; box-shadow:0 12px 60px rgba(0,0,0,.9);
+      cursor:default; pointer-events:none;
+    }
+    #poster-modal .pm-close {
+      position:absolute; top:18px; right:22px;
+      color:rgba(255,255,255,.55); font-size:.8rem;
+      font-family:'Inter',sans-serif; pointer-events:none;
+    }
     .page { position:relative; z-index:1; max-width:1200px; margin:0 auto; padding:0 24px 60px; }
     nav {
       position:relative; z-index:2;
       display:flex; align-items:center; justify-content:space-between;
       padding:18px 32px; border-bottom:1px solid var(--panel-border);
-      backdrop-filter:blur(10px); background:rgba(3,5,15,.35);
+      backdrop-filter:blur(10px); background:rgba(3,5,15,.32);
       flex-wrap:wrap; gap:10px;
     }
     /* Fixed: entire brand name is gold, no color split */
     .nav-brand {
-      font-family:'Space Grotesk',sans-serif; font-size:1.05rem; font-weight:700;
-      letter-spacing:.08em; color:var(--gold); text-decoration:none; text-shadow:var(--glow-gold);
+      font-family:'Cinzel',serif; font-size:.95rem; font-weight:700;
+      letter-spacing:.14em; color:var(--gold); text-decoration:none; text-shadow:var(--glow-gold);
     }
     .nav-links { display:flex; gap:18px; align-items:center; flex-wrap:wrap; }
     nav a.nav-link { font-family:'Inter',sans-serif; font-size:.84rem; color:var(--dim-white); text-decoration:none; transition:color .2s; }
@@ -50,7 +73,7 @@
 
     /* Panel */
     .panel { background:var(--panel); border:1px solid var(--panel-border); border-radius:12px; backdrop-filter:blur(12px); padding:28px 32px; margin-bottom:24px; }
-    .panel-title { font-family:'Space Grotesk',sans-serif; font-size:.75rem; font-weight:600; letter-spacing:.15em; color:var(--cyan); text-transform:uppercase; margin-bottom:16px; display:flex; align-items:center; gap:10px; }
+    .panel-title { font-family:'Playfair Display',serif; font-size:.8rem; font-weight:700; letter-spacing:.06em; color:var(--cyan); text-transform:uppercase; margin-bottom:16px; display:flex; align-items:center; gap:10px; }
     .panel-title::after { content:''; flex:1; height:1px; background:linear-gradient(to right,var(--cyan-dim),transparent); }
 
     /* Buttons */
@@ -86,7 +109,7 @@
     .results-count strong { color:var(--gold); }
     .table-wrap { overflow-x:auto; border-radius:8px; border:1px solid var(--panel-border); }
     table { width:100%; border-collapse:collapse; font-size:.88rem; }
-    thead th { background:rgba(13,31,60,.9); color:var(--cyan); font-family:'Space Grotesk',sans-serif; font-size:.7rem; font-weight:600; letter-spacing:.08em; padding:12px 12px; text-align:left; border-bottom:1px solid var(--panel-border); user-select:none; white-space:nowrap; }
+    thead th { background:rgba(13,31,60,.9); color:var(--cyan); font-family:'Playfair Display',serif; font-size:.68rem; font-weight:700; letter-spacing:.04em; padding:12px 12px; text-align:left; border-bottom:1px solid var(--panel-border); user-select:none; white-space:nowrap; }
     thead th.sortable { cursor:pointer; }
     thead th.sortable:hover { color:var(--gold); }
     tbody tr { border-bottom:1px solid rgba(64,200,240,.06); transition:background .15s; }
@@ -104,9 +127,9 @@
     .badge { display:inline-block; font-family:'Inter',sans-serif; font-size:.72rem; font-weight:500; border-radius:4px; padding:2px 8px; }
     .badge-watched { background:rgba(64,200,240,.1); color:var(--cyan); border:1px solid var(--cyan-dim); }
     .badge-unwatched { background:rgba(107,122,153,.1); color:var(--dim-white); border:1px solid rgba(107,122,153,.3); }
-    .score-gold { color:var(--gold); font-family:'Share Tech Mono',monospace; }
-    .score-cyan { color:var(--cyan); font-family:'Share Tech Mono',monospace; }
-    .score-dim  { color:var(--dim-white); font-family:'Share Tech Mono',monospace; }
+    .score-gold { color:var(--gold); font-family:'DM Mono',monospace; }
+    .score-cyan { color:var(--cyan); font-family:'DM Mono',monospace; }
+    .score-dim  { color:var(--dim-white); font-family:'DM Mono',monospace; }
 
     /* Column header tooltips */
     .th-tip { position:relative; }
@@ -121,41 +144,18 @@
     ::-webkit-scrollbar-track { background:var(--space-black); }
     ::-webkit-scrollbar-thumb { background:var(--cyan-dim); border-radius:3px; }
     ::-webkit-scrollbar-thumb:hover { background:var(--cyan); }
-
-    /* ── Video background ─────────────────────────────────────────── */
-    #bg-video {
-      position:fixed; inset:0; width:100%; height:100%;
-      object-fit:cover; z-index:-1; pointer-events:none;
-    }
-
-    /* ── Poster lightbox modal ─────────────────────────────────────── */
-    #poster-modal {
-      display:none; position:fixed; inset:0; z-index:9999;
-      background:rgba(0,0,0,.75); backdrop-filter:blur(4px);
-      align-items:center; justify-content:center; cursor:pointer;
-    }
-    #poster-modal.open { display:flex; }
-    #poster-modal img {
-      max-width:min(320px, 90vw); max-height:90vh;
-      border-radius:12px; box-shadow:0 8px 48px rgba(0,0,0,.8);
-      cursor:default; pointer-events:none;
-    }
-    #poster-modal .close-hint {
-      position:absolute; top:20px; right:24px;
-      color:rgba(255,255,255,.6); font-size:.8rem;
-      font-family:'Inter',sans-serif;
-    }
-
   </style>
   {% block head %}{% endblock %}
 </head>
 <body>
+  <!-- Background video — upload background.mp4 to R2 and set URL below -->
   <video id="bg-video" autoplay muted loop playsinline>
-    <source src="https://pub-REPLACE_WITH_YOUR_R2_PUBLIC_URL/background.mp4" type="video/mp4">
+    <source src="https://YOUR_R2_PUBLIC_URL/background.mp4" type="video/mp4">
   </video>
 
+  <!-- Poster lightbox -->
   <div id="poster-modal" onclick="closePosterModal()">
-    <span class="close-hint">click anywhere to close</span>
+    <span class="pm-close">ESC or click outside to close</span>
     <img id="poster-modal-img" src="" alt="">
   </div>
 
@@ -170,20 +170,19 @@
   </nav>
   <div class="page">{% block content %}{% endblock %}</div>
   {% block scripts %}{% endblock %}
-
   <script>
     function openPosterModal(src, title) {
-      const modal = document.getElementById('poster-modal');
-      const img   = document.getElementById('poster-modal-img');
-      img.src = src; img.alt = title || '';
-      modal.classList.add('open');
+      document.getElementById('poster-modal-img').src = src;
+      document.getElementById('poster-modal-img').alt = title || '';
+      document.getElementById('poster-modal').classList.add('open');
       document.body.style.overflow = 'hidden';
     }
     function closePosterModal() {
       document.getElementById('poster-modal').classList.remove('open');
+      document.getElementById('poster-modal-img').src = '';
       document.body.style.overflow = '';
     }
-    document.addEventListener('keydown', e => { if(e.key==='Escape') closePosterModal(); });
+    document.addEventListener('keydown', e => { if(e.key === 'Escape') closePosterModal(); });
   </script>
 </body>
 </html>

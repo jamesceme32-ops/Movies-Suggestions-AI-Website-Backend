@@ -4,7 +4,7 @@
 {% block head %}
 <style>
   .top-header { padding:40px 0 24px; display:flex; align-items:flex-end; justify-content:space-between; flex-wrap:wrap; gap:16px; }
-  .top-title { font-family:'Space Grotesk',sans-serif; font-size:1.6rem; font-weight:700; }
+  .top-title { font-family:'Playfair Display',serif; font-size:1.6rem; font-weight:700; letter-spacing:.02em; }
   .top-title em { color:var(--gold); font-style:normal; }
   table { table-layout:auto; }
   thead th { white-space:normal !important; vertical-align:bottom; }
@@ -46,10 +46,9 @@
   .section-divider td { background:rgba(13,31,60,.5) !important; color:var(--dim-white); font-size:.72rem; font-family:'Space Grotesk',sans-serif; letter-spacing:.1em; text-transform:uppercase; padding:6px 12px !important; border-left:none !important; }
 
 
-  /* Poster thumbnail */
-  .poster-thumb { width:40px; min-width:40px; height:60px; object-fit:cover; border-radius:4px; cursor:zoom-in; transition:transform .15s; display:block; }
-  .poster-thumb:hover { transform:scale(1.08); }
-  .poster-placeholder { width:40px; min-width:40px; height:60px; border-radius:4px; background:rgba(64,200,240,.07); border:1px solid var(--panel-border); display:flex; align-items:center; justify-content:center; font-size:1.1rem; }
+  .poster-thumb { width:42px; min-width:42px; height:62px; object-fit:cover; border-radius:4px; cursor:zoom-in; transition:transform .15s; display:block; }
+  .poster-thumb:hover { transform:scale(1.1); box-shadow:0 4px 16px rgba(0,0,0,.6); }
+  .poster-ph { width:42px; min-width:42px; height:62px; border-radius:4px; background:rgba(64,200,240,.07); border:1px solid var(--panel-border); display:flex; align-items:center; justify-content:center; font-size:1rem; color:var(--dim-white); }
 
   th.sortable { cursor:pointer; }
   th.sortable:hover { color:var(--gold); }
@@ -74,7 +73,7 @@
       <thead>
         <tr>
           <th style="width:44px;" class="nowrap">#</th>
-          <th style="width:44px;"></th>
+          <th style="width:50px;"></th>
           <th class="sortable nowrap" data-col="1">Title <span class="sort-arrow">↕</span></th>
           <th class="sortable nowrap" data-col="2">Year <span class="sort-arrow">↕</span></th>
           <th class="sortable nowrap" data-col="3">Genre <span class="sort-arrow">↕</span></th>
@@ -111,12 +110,12 @@
                 {{ m.top10_rank if m.top10_rank else loop.index }}
               </span>
             </td>
-            <td style="padding:6px 8px;vertical-align:middle;width:44px;">
+            <td style="padding:6px 8px;width:50px;vertical-align:middle;">
               {% if m.poster_url %}
               <img class="poster-thumb" src="{{ m.poster_url }}" alt="{{ m.title }}"
                    onclick="openPosterModal('{{ m.poster_url }}','{{ m.title }}')" title="Click to enlarge">
               {% else %}
-              <div class="poster-placeholder">🎬</div>
+              <div class="poster-ph">🎬</div>
               {% endif %}
             </td>
             <td class="col-title">
