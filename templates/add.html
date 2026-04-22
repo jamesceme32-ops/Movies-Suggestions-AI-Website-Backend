@@ -286,7 +286,7 @@
   fetch('/admin/debug-add', { credentials: 'same-origin' }).then(r => {
     if (r.ok) {
       r.json().then(d => {
-        const el = document.getElementById('session-status');
+        var el = document.getElementById('session-status');
         if (d.admin_session) {
           el.innerHTML = '🟢 Logged in · OMDb key: ' + (d.omdb_key_set ? '✓ set (' + d.omdb_key_chars + ' chars)' : '✗ missing') +
             ' <a href="/admin/debug-add" target="_blank" style="color:var(--cyan);font-size:.72rem;">[debug]</a>';
@@ -316,7 +316,7 @@
     });
   });
 
-  const flashEl = document.getElementById('flash-msg');
+  var flashEl = document.getElementById('flash-msg');
   function showFlash(msg, ok) {
     flashEl.className = ok ? 'alert-success' : 'alert-error';
     flashEl.textContent = msg; flashEl.style.display = 'block';
@@ -326,11 +326,11 @@
   // ══════════════════════════════════════════════
   //  TAB 1: SEARCH & ADD
   // ══════════════════════════════════════════════
-  let selectedMovie = null, selectedScore = null;
+  var selectedMovie = null, selectedScore = null;
 
   window.doSearch = async function doSearch() {
-    const q = document.getElementById('searchInput').value.trim();
-    const y = document.getElementById('yearInput').value.trim();
+    var q = document.getElementById('searchInput').value.trim();
+    var y = document.getElementById('yearInput').value.trim();
     if (!q) return;
     document.getElementById('searching').style.display = 'block';
     document.getElementById('no-results').style.display = 'none';
@@ -338,7 +338,7 @@
     document.getElementById('detailsPanel').style.display = 'none';
     selectedMovie = null;
     try {
-      const res = await fetch(`/api/search_movie?q=${encodeURIComponent(q)}${y?'&year='+y:''}`, { credentials: 'same-origin' });
+      var res = await fetch(`/api/search_movie?q=${encodeURIComponent(q)}${y?'&year='+y:''}`, { credentials: 'same-origin' });
       if (res.redirected || res.url.includes('/admin/login')) {
         document.getElementById('searching').style.display = 'none';
         document.getElementById('no-results').textContent = 'Session expired — please log in again.';
@@ -346,7 +346,7 @@
         setTimeout(() => window.location.href = '/admin/login?next=/add', 1500);
         return;
       }
-      const data = await res.json();
+      var data = await res.json();
       document.getElementById('searching').style.display = 'none';
       if (data.error) {
         document.getElementById('no-results').textContent = '⚠️ ' + data.error;
@@ -359,10 +359,10 @@
         return;
       }
       document.getElementById('no-results').style.display = 'none';
-      const container = document.getElementById('searchResults');
+      var container = document.getElementById('searchResults');
       data.results.forEach(m => {
-        const card = document.createElement('div'); card.className = 'movie-card'; card.dataset.id = m.imdbID;
-        const poster = (m.Poster && m.Poster !== 'N/A') ? m.Poster : '';
+        var card = document.createElement('div'); card.className = 'movie-card'; card.dataset.id = m.imdbID;
+        var poster = (m.Poster && m.Poster !== 'N/A') ? m.Poster : '';
         card.innerHTML = `${poster?`<img src="${poster}" alt="${m.Title}" loading="lazy">`:'<div style="aspect-ratio:2/3;background:rgba(255,255,255,.05);border-radius:4px;margin-bottom:6px;display:flex;align-items:center;justify-content:center;font-size:2rem;">🎬</div>'}
           <div class="mc-title">${m.Title}</div><div class="mc-year">${m.Year}</div>`;
         card.addEventListener('click', () => selectMovie(m.imdbID, card));
@@ -376,8 +376,8 @@
   async function selectMovie(imdbId, card) {
     document.querySelectorAll('.movie-card').forEach(c => c.classList.remove('selected'));
     card.classList.add('selected');
-    const res = await fetch(`/api/movie_details?id=${imdbId}`, { credentials: 'same-origin' });
-    const data = await res.json();
+    var res = await fetch(`/api/movie_details?id=${imdbId}`, { credentials: 'same-origin' });
+    var data = await res.json();
     if (data.error) { showFlash(data.error, false); return; }
     selectedMovie = data; selectedScore = null;
     document.querySelectorAll('.score-btn').forEach(b => b.classList.remove('active'));
@@ -389,7 +389,7 @@
     document.getElementById('d-director').textContent = data.director || '—';
     document.getElementById('d-actors').textContent   = data.actors   || '—';
     document.getElementById('d-plot').textContent     = data.plot     || '—';
-    const gLink = document.getElementById('d-google-link');
+    var gLink = document.getElementById('d-google-link');
     gLink.href = data.google_url || '#'; gLink.textContent = data.google_url || '—';
     document.getElementById('watchedCheck').checked = false;
     document.getElementById('score-section').style.display = 'none';
@@ -410,13 +410,13 @@
 
   document.getElementById('saveBtn').addEventListener('click', async () => {
     if (!selectedMovie) { showFlash('Please select a movie first.', false); return; }
-    const watched = document.getElementById('watchedCheck').checked;
+    var watched = document.getElementById('watchedCheck').checked;
     if (watched && selectedScore===null) { showFlash('Please select your score (1–10).', false); return; }
     document.getElementById('saveTxt').style.display='none'; document.getElementById('saveLoad').style.display='inline'; document.getElementById('saveBtn').disabled=true;
     try {
-      const res  = await fetch('/api/save_movie', {
+      var res  = await fetch('/api/save_movie', {
         credentials: 'same-origin',method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...selectedMovie,watched,my_score:watched?selectedScore:null})});
-      const data = await res.json();
+      var data = await res.json();
       if (data.success) {
         showFlash(`✅ "${selectedMovie.title}" added!`, true);
         document.getElementById('detailsPanel').style.display='none'; document.getElementById('searchResults').innerHTML=''; document.getElementById('searchInput').value=''; selectedMovie=null; selectedScore=null;
@@ -430,17 +430,17 @@
   // ══════════════════════════════════════════════
   //  TAB 2: TOP 10
   // ══════════════════════════════════════════════
-  let poolLoaded=false, poolMovies=[], top10Keys=[];
+  var poolLoaded=false, poolMovies=[], top10Keys=[];
 
-  const rankColors = ['r1','r2','r3','rt','rt','rt','rt','rt','rt','rt'];
+  var rankColors = ['r1','r2','r3','rt','rt','rt','rt','rt','rt','rt'];
 
   function renderTop10() {
-    const el = document.getElementById('top10List');
+    var el = document.getElementById('top10List');
     if (!top10Keys.length) { el.innerHTML='<div class="top10-empty">Add movies from the left →</div>'; return; }
     el.innerHTML = top10Keys.map((key,i) => {
-      const m = poolMovies.find(x=>x.key===key);
-      const label = m ? `${m.title} (${m.year||'?'})` : key.split('||')[0];
-      const rc = rankColors[i] || 'rt';
+      var m = poolMovies.find(x=>x.key===key);
+      var label = m ? `${m.title} (${m.year||'?'})` : key.split('||')[0];
+      var rc = rankColors[i] || 'rt';
       return `<div class="top10-item" data-key="${key}">
         <span class="ti-rank ${rc}">${i+1}</span>
         <span class="ti-title">${label}</span>
@@ -454,12 +454,12 @@
   }
 
   function renderPool(filter='') {
-    const el = document.getElementById('poolList');
-    const fl = filter.toLowerCase();
-    const filtered = poolMovies.filter(m => !fl || m.title.toLowerCase().includes(fl));
+    var el = document.getElementById('poolList');
+    var fl = filter.toLowerCase();
+    var filtered = poolMovies.filter(m => !fl || m.title.toLowerCase().includes(fl));
     if (!filtered.length) { el.innerHTML='<div style="color:var(--dim-white);font-size:.83rem;padding:12px;">No movies found.</div>'; return; }
     el.innerHTML = filtered.map(m => {
-      const inTop10 = top10Keys.includes(m.key);
+      var inTop10 = top10Keys.includes(m.key);
       return `<div class="pool-item">
         <div class="pi-info">
           <div class="pi-title">${m.title}</div>
@@ -474,9 +474,9 @@
 
   async function loadPool() {
     poolLoaded=true;
-    const [poolRes, top10Res] = await Promise.all([fetch('/api/rated_movies'), fetch('/api/top10')]);
-    const poolData  = await poolRes.json();
-    const top10Data = await top10Res.json();
+    var [poolRes, top10Res] = await Promise.all([fetch('/api/rated_movies'), fetch('/api/top10')]);
+    var poolData  = await poolRes.json();
+    var top10Data = await top10Res.json();
     poolMovies = poolData.movies || [];
     top10Keys  = top10Data.top10 || [];
     renderPool(); renderTop10();
@@ -493,8 +493,8 @@
     top10Keys = top10Keys.filter(k=>k!==key); renderPool(document.getElementById('poolSearch').value); renderTop10();
   }
   window.moveTop10 = function moveTop10(key, dir) {
-    const i = top10Keys.indexOf(key); if(i===-1) return;
-    const ni = i+dir; if(ni<0||ni>=top10Keys.length) return;
+    var i = top10Keys.indexOf(key); if(i===-1) return;
+    var ni = i+dir; if(ni<0||ni>=top10Keys.length) return;
     [top10Keys[i], top10Keys[ni]] = [top10Keys[ni], top10Keys[i]];
     renderTop10();
   }
@@ -504,12 +504,12 @@
   });
 
   document.getElementById('saveTop10Btn').addEventListener('click', async () => {
-    const btn = document.getElementById('saveTop10Btn');
+    var btn = document.getElementById('saveTop10Btn');
     btn.textContent='Saving...'; btn.disabled=true;
     try {
-      const res  = await fetch('/api/top10',{
+      var res  = await fetch('/api/top10',{
         credentials: 'same-origin',method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({top10:top10Keys})});
-      const data = await res.json();
+      var data = await res.json();
       showFlash(data.success?'✅ Top 10 saved!':(data.error||'Failed.'), data.success);
     } catch(e) { showFlash('Something went wrong.',false); }
     btn.textContent='💾 Save Top 10'; btn.disabled=false;
@@ -520,25 +520,25 @@
   //  TAB 3: EDIT
   // ══════════════════════════════════════════════
   // ══ EDIT TAB ══════════════════════════════════════════════════════════
-  let editLoaded = false;
-  let editAllMovies = [];  // separate from poolMovies to avoid conflicts
-  let editCurrentOrig = null;  // the original movie being edited
+  var editLoaded = false;
+  var editAllMovies = [];  // separate from poolMovies to avoid conflicts
+  var editCurrentOrig = null;  // the original movie being edited
 
   async function ensureEditLoaded() {
     if (editLoaded) return;
     editLoaded = true;
-    const res  = await fetch('/api/all_movies');
-    const data = await res.json();
+    var res  = await fetch('/api/all_movies');
+    var data = await res.json();
     editAllMovies = data.movies || [];
   }
 
   async function doEditSearch() {
     await ensureEditLoaded();
-    const q  = document.getElementById('editSearch').value.trim().toLowerCase();
-    const el = document.getElementById('editResults');
+    var q  = document.getElementById('editSearch').value.trim().toLowerCase();
+    var el = document.getElementById('editResults');
     if (!q) { el.innerHTML = '<div style="color:var(--dim-white);font-size:.83rem;">Type a title and press Search.</div>'; return; }
 
-    const matches = editAllMovies.filter(m => m.title.toLowerCase().includes(q));
+    var matches = editAllMovies.filter(m => m.title.toLowerCase().includes(q));
     if (!matches.length) {
       el.innerHTML = '<div style="color:var(--dim-white);font-size:.83rem;">No movies found.</div>';
       document.getElementById('editForm').style.display = 'none';
@@ -566,7 +566,7 @@
     document.getElementById('ef-genre').value    = m.genre || '';
     document.getElementById('ef-duration').value = m.duration || '';
 
-    const watchedCb = document.getElementById('ef-watched');
+    var watchedCb = document.getElementById('ef-watched');
     watchedCb.checked = !!m.watched;
     document.getElementById('ef-score-section').style.display = m.watched ? 'block' : 'none';
 
@@ -602,13 +602,13 @@
 
   async function saveEditForm() {
     if (!editCurrentOrig) return;
-    const title    = document.getElementById('ef-title').value.trim();
-    const year     = document.getElementById('ef-year').value.trim();
-    const genre    = document.getElementById('ef-genre').value.trim();
-    const duration = document.getElementById('ef-duration').value.trim();
-    const watched  = document.getElementById('ef-watched').checked;
-    const scoreBtn = document.querySelector('#ef-score-row .score-btn.active');
-    const my_score = scoreBtn ? parseInt(scoreBtn.dataset.score) : null;
+    var title    = document.getElementById('ef-title').value.trim();
+    var year     = document.getElementById('ef-year').value.trim();
+    var genre    = document.getElementById('ef-genre').value.trim();
+    var duration = document.getElementById('ef-duration').value.trim();
+    var watched  = document.getElementById('ef-watched').checked;
+    var scoreBtn = document.querySelector('#ef-score-row .score-btn.active');
+    var my_score = scoreBtn ? parseInt(scoreBtn.dataset.score) : null;
 
     if (!title) { showFlash('Title cannot be empty.', false); return; }
     if (watched && my_score === null) { showFlash('Please select a score for watched movies.', false); return; }
@@ -618,7 +618,7 @@
     document.getElementById('saveEditBtn').disabled = true;
 
     try {
-      const res = await fetch('/api/edit_movie', {
+      var res = await fetch('/api/edit_movie', {
         credentials: 'same-origin',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -629,11 +629,11 @@
           genre, duration, watched, my_score
         })
       });
-      const data = await res.json();
+      var data = await res.json();
       if (data.success) {
         showFlash(`✅ "${title}" updated successfully!`, true);
         // Update local cache
-        const idx = editAllMovies.findIndex(m =>
+        var idx = editAllMovies.findIndex(m =>
           m.title === editCurrentOrig.title && String(m.year||'') === String(editCurrentOrig.year||'')
         );
         if (idx >= 0) {
@@ -663,14 +663,14 @@
   //  TAB 4: REFRESH IMDB
   // ══════════════════════════════════════════════
   document.getElementById('refreshBtn').addEventListener('click', async () => {
-    const btn = document.getElementById('refreshBtn');
+    var btn = document.getElementById('refreshBtn');
     btn.disabled = true; btn.textContent = 'Running...';
     document.getElementById('refreshProgress').style.display = 'block';
     document.getElementById('refreshDone').style.display = 'none';
     document.getElementById('refreshErr').style.display  = 'none';
 
     try {
-      const start = await fetch('/admin/refresh-omdb', {
+      var start = await fetch('/admin/refresh-omdb', {
         credentials: 'same-origin', method: 'POST',
         credentials: 'same-origin'});
       if (!start.ok) { throw new Error('Failed to start refresh'); }
@@ -684,7 +684,7 @@
 
   function pollRefresh() {
     fetch('/admin/refresh-omdb/progress', { credentials: 'same-origin' }).then(r=>r.json()).then(data => {
-      const pct = data.total > 0 ? (data.done / data.total * 100) : 0;
+      var pct = data.total > 0 ? (data.done / data.total * 100) : 0;
       document.getElementById('refreshBar').style.width   = pct.toFixed(1) + '%';
       document.getElementById('refreshLabel').textContent = `${data.done} / ${data.total} movies processed`;
       document.getElementById('rFromCache').textContent   = data.from_cache || 0;
@@ -697,7 +697,7 @@
           document.getElementById('refreshErr').textContent   = data.error;
           document.getElementById('refreshErr').style.display = 'block';
         } else {
-          const msg = `✅ Done! Filled ${data.from_cache + data.from_api} movies `+
+          var msg = `✅ Done! Filled ${data.from_cache + data.from_api} movies `+
                       `(${data.from_cache} from cache, ${data.from_api} from API). `+
                       `Hit /reset to reload.`;
           document.getElementById('refreshDone').textContent  = msg;
@@ -711,16 +711,16 @@
 
   // ── TMDb Refresh ─────────────────────────────────────────────────────────
   document.getElementById('tmdbRefreshBtn').addEventListener('click', async () => {
-    const btn = document.getElementById('tmdbRefreshBtn');
+    var btn = document.getElementById('tmdbRefreshBtn');
     btn.disabled = true; btn.textContent = 'Running...';
     document.getElementById('tmdbProgress').style.display = 'block';
     document.getElementById('tmdbDone').style.display = 'none';
     document.getElementById('tmdbErr').style.display  = 'none';
     try {
-      const start = await fetch('/admin/refresh-tmdb', {
+      var start = await fetch('/admin/refresh-tmdb', {
         credentials: 'same-origin', method: 'POST',
         credentials: 'same-origin'});
-      const sdata = await start.json();
+      var sdata = await start.json();
       if (!start.ok || sdata.error) throw new Error(sdata.error || 'Failed to start');
       pollTmdb();
     } catch(e) {
@@ -732,7 +732,7 @@
 
   function pollTmdb() {
     fetch('/admin/refresh-tmdb/progress', { credentials: 'same-origin' }).then(r=>r.json()).then(data => {
-      const pct = data.total > 0 ? (data.done / data.total * 100) : 0;
+      var pct = data.total > 0 ? (data.done / data.total * 100) : 0;
       document.getElementById('tmdbBar').style.width   = pct.toFixed(1) + '%';
       document.getElementById('tmdbLabel').textContent = `${data.done} / ${data.total} movies processed`;
       document.getElementById('tFilled').textContent   = data.filled || 0;

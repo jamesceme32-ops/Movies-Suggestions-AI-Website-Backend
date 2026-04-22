@@ -166,14 +166,8 @@
     .stat-chip strong { color:var(--gold); font-weight:700; }
     .stat-chip { color:rgba(255,255,255,0.9) !important; }
 
-    /* Cinematic page fade transition */
-    .page-fade {
-      animation: pageFadeIn 0.15s ease forwards;
-    }
-    @keyframes pageFadeIn {
-      from { opacity: 0.3; }
-      to   { opacity: 1; }
-    }
+    /* Transition handled by SPA navigator */
+    .page-fade { opacity: 1; }
   </style>
   {% block head %}{% endblock %}
 </head>
@@ -260,8 +254,11 @@
         scripts.forEach(s => s.remove());
         document.querySelectorAll('script[data-spa]').forEach(s => s.remove());
 
-        // ── Swap page content ─────────────────────────────────────────────
+        // ── Swap page content (hide first to prevent white flash) ──────────
         const page = document.querySelector('.page');
+        page.style.opacity = '0';
+        await new Promise(r => setTimeout(r, 20));
+
         page.innerHTML = newPage.innerHTML;
 
         // ── Re-execute page scripts ───────────────────────────────────────
@@ -275,10 +272,11 @@
 
         history.pushState({ url }, '', url);
         window.scrollTo(0, 0);
-        // Brief fade-in
-        page.style.animation = 'none';
-        void page.offsetWidth;
-        page.style.animation = '';
+
+        // Fade in smoothly
+        page.style.transition = 'opacity 0.18s ease';
+        page.style.opacity    = '1';
+        setTimeout(() => { page.style.transition = ''; }, 220);
 
       } catch(e) {
         window.location.href = url;

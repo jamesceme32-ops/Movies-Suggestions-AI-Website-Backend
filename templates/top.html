@@ -215,7 +215,7 @@
 {% block scripts %}
 <script>
 
-  let statsLoaded = false;
+  var statsLoaded = false;
 
   function switchSubtab(name, btn) {
     document.querySelectorAll('.top-subtab').forEach(b => b.classList.remove('active'));
@@ -228,16 +228,16 @@
   async function loadStats() {
     statsLoaded = true;
     try {
-      const res  = await fetch('/api/watched_stats');
-      const data = await res.json();
+      var res  = await fetch('/api/watched_stats');
+      var data = await res.json();
 
       _statsData = data;
-      const maxG = Math.max(...data.genres.map(g => g.count), 1);
+      var maxG = Math.max(...data.genres.map(g => g.count), 1);
       renderGenreTable(data.genres, maxG);
       document.getElementById('genre-stats-loading').style.display = 'none';
       document.getElementById('genre-stats-table').style.display   = 'block';
 
-      const maxE = Math.max(...data.eras.map(e => e.count), 1);
+      var maxE = Math.max(...data.eras.map(e => e.count), 1);
       renderEraTable(data.eras, maxE);
       document.getElementById('era-stats-table').style.display = 'block';
 
@@ -246,11 +246,11 @@
     }
   }
 
-  let _statsData = { genres: [], eras: [] };
-  let _sortState  = { genre: { col: 1, asc: false }, era: { col: 0, asc: true } };
+  var _statsData = { genres: [], eras: [] };
+  var _sortState  = { genre: { col: 1, asc: false }, era: { col: 0, asc: true } };
 
   function renderGenreTable(data, maxG) {
-    const tbody = document.getElementById('genre-tbody');
+    var tbody = document.getElementById('genre-tbody');
     tbody.innerHTML = data.map(g => `
       <tr>
         <td>${g.name}</td>
@@ -262,7 +262,7 @@
   }
 
   function renderEraTable(data, maxE) {
-    const tbody = document.getElementById('era-tbody');
+    var tbody = document.getElementById('era-tbody');
     tbody.innerHTML = data.map(e => `
       <tr>
         <td>${e.name}</td>
@@ -274,43 +274,43 @@
   }
 
   window.sortStats = function(table, col) {
-    const state = _sortState[table];
-    const asc   = (state.col === col) ? !state.asc : (col === 0);
+    var state = _sortState[table];
+    var asc   = (state.col === col) ? !state.asc : (col === 0);
     state.col = col; state.asc = asc;
-    const data  = table === 'genre' ? [..._statsData.genres] : [..._statsData.eras];
+    var data  = table === 'genre' ? [..._statsData.genres] : [..._statsData.eras];
     data.sort((a, b) => {
-      const vals = [a.name, a.count, a.avg];
-      const valb = [b.name, b.count, b.avg];
-      const av = vals[col], bv = valb[col];
+      var vals = [a.name, a.count, a.avg];
+      var valb = [b.name, b.count, b.avg];
+      var av = vals[col], bv = valb[col];
       if (typeof av === 'string') return asc ? av.localeCompare(bv) : bv.localeCompare(av);
       return asc ? av - bv : bv - av;
     });
-    const max = Math.max(...data.map(x => x.count), 1);
+    var max = Math.max(...data.map(x => x.count), 1);
     if (table === 'genre') renderGenreTable(data, max);
     else renderEraTable(data, max);
   };
 
   document.querySelectorAll('.title-btn').forEach(btn=>{
     btn.addEventListener('click',()=>{
-      const row=document.getElementById(`details-${btn.dataset.idx}`);
-      const open=row.style.display!=='none';
+      var row=document.getElementById(`details-${btn.dataset.idx}`);
+      var open=row.style.display!=='none';
       row.style.display=open?'none':'table-row';
       btn.classList.toggle('open',!open);
     });
   });
-  const table=document.getElementById('top-table');
+  var table=document.getElementById('top-table');
   if(table){
-    let lc=-1,la=false;
+    var lc=-1,la=false;
     table.querySelectorAll('th.sortable').forEach(th=>{
       th.addEventListener('click',()=>{
-        const col=parseInt(th.dataset.col),asc=lc===col?!la:false; lc=col; la=asc;
+        var col=parseInt(th.dataset.col),asc=lc===col?!la:false; lc=col; la=asc;
         table.querySelectorAll('th').forEach(h=>h.classList.remove('sorted'));
         th.classList.add('sorted');
-        const arr=th.querySelector('.sort-arrow');if(arr)arr.textContent=asc?'↑':'↓';
-        const tbody=table.querySelector('tbody');
+        var arr=th.querySelector('.sort-arrow');if(arr)arr.textContent=asc?'↑':'↓';
+        var tbody=table.querySelector('tbody');
         Array.from(tbody.querySelectorAll('.result-row')).sort((a,b)=>{
-          const av=a.cells[col]?.textContent.trim()||'',bv=b.cells[col]?.textContent.trim()||'';
-          const an=parseFloat(av),bn=parseFloat(bv);
+          var av=a.cells[col]?.textContent.trim()||'',bv=b.cells[col]?.textContent.trim()||'';
+          var an=parseFloat(av),bn=parseFloat(bv);
           if(!isNaN(an)&&!isNaN(bn)) return asc?an-bn:bn-an;
           return asc?av.localeCompare(bv):bv.localeCompare(av);
         }).forEach(r=>{const dr=document.getElementById(`details-${r.id.split('-')[1]}`);tbody.appendChild(r);if(dr)tbody.appendChild(dr);});

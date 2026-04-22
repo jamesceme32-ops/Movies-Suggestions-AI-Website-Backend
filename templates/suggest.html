@@ -246,8 +246,8 @@
   single('watched-tabs','watched-input','active');
 
   function multi(gId,cId,name){
-    const c=document.getElementById(cId);
-    const sync=()=>{c.innerHTML='';document.querySelectorAll(`#${gId} .toggle-btn.active`).forEach(b=>{const i=document.createElement('input');i.type='hidden';i.name=name;i.value=b.dataset.val;c.appendChild(i);});};
+    var c=document.getElementById(cId);
+    var sync=()=>{c.innerHTML='';document.querySelectorAll(`#${gId} .toggle-btn.active`).forEach(b=>{const i=document.createElement('input');i.type='hidden';i.name=name;i.value=b.dataset.val;c.appendChild(i);});};
     document.querySelectorAll(`#${gId} .toggle-btn`).forEach(b=>{b.addEventListener('click',()=>{b.classList.toggle('active');sync();});});
     sync();
   }
@@ -268,28 +268,28 @@
   // Title click → expand details row
   document.querySelectorAll('.title-btn').forEach(btn=>{
     btn.addEventListener('click',()=>{
-      const idx=btn.dataset.idx;
-      const row=document.getElementById(`details-${idx}`);
-      const open=row.style.display!=='none';
+      var idx=btn.dataset.idx;
+      var row=document.getElementById(`details-${idx}`);
+      var open=row.style.display!=='none';
       row.style.display=open?'none':'table-row';
       btn.classList.toggle('open',!open);
     });
   });
 
-  const table=document.getElementById('results-table');
+  var table=document.getElementById('results-table');
   if(table){
-    let lc=-1,la=false;
+    var lc=-1,la=false;
     table.querySelectorAll('th.sortable').forEach(th=>{
       th.addEventListener('click',e=>{
         if(e.target.closest('.tip-box')) return;
-        const col=parseInt(th.dataset.col),asc=lc===col?!la:false; lc=col; la=asc;
+        var col=parseInt(th.dataset.col),asc=lc===col?!la:false; lc=col; la=asc;
         table.querySelectorAll('th').forEach(h=>h.classList.remove('sorted'));
         th.classList.add('sorted');
-        const arr=th.querySelector('.sort-arrow');if(arr)arr.textContent=asc?'↑':'↓';
-        const tbody=table.querySelector('tbody');
+        var arr=th.querySelector('.sort-arrow');if(arr)arr.textContent=asc?'↑':'↓';
+        var tbody=table.querySelector('tbody');
         Array.from(tbody.querySelectorAll('.result-row')).sort((a,b)=>{
-          const av=a.cells[col]?.textContent.trim()||'',bv=b.cells[col]?.textContent.trim()||'';
-          const an=parseFloat(av),bn=parseFloat(bv);
+          var av=a.cells[col]?.textContent.trim()||'',bv=b.cells[col]?.textContent.trim()||'';
+          var an=parseFloat(av),bn=parseFloat(bv);
           if(!isNaN(an)&&!isNaN(bn)) return asc?an-bn:bn-an;
           return asc?av.localeCompare(bv):bv.localeCompare(av);
         }).forEach(r=>{const dr=document.getElementById(`details-${r.id.split('-')[1]}`);tbody.appendChild(r);if(dr)tbody.appendChild(dr);});
