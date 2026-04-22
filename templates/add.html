@@ -303,7 +303,7 @@ document.addEventListener("DOMContentLoaded", function() {
   // ══════════════════════════════════════════════
   let selectedMovie = null, selectedScore = null;
 
-  async function doSearch() {
+  window.doSearch = async function doSearch() {
     const q = document.getElementById('searchInput').value.trim();
     const y = document.getElementById('yearInput').value.trim();
     if (!q) return;
@@ -314,9 +314,21 @@ document.addEventListener("DOMContentLoaded", function() {
     selectedMovie = null;
     try {
       const res = await fetch(`/api/search_movie?q=${encodeURIComponent(q)}${y?'&year='+y:''}`);
+      if (res.redirected || res.url.includes('/admin/login')) {
+        document.getElementById('searching').style.display = 'none';
+        document.getElementById('no-results').textContent = 'Session expired — please log in again.';
+        document.getElementById('no-results').style.display = 'block';
+        setTimeout(() => window.location.href = '/admin/login?next=/add', 1500);
+        return;
+      }
       const data = await res.json();
       document.getElementById('searching').style.display = 'none';
-      if (!data.results?.length) { document.getElementById('no-results').style.display = 'block'; return; }
+      if (!data.results?.length) {
+        const errMsg = data.error || 'No results found.';
+        document.getElementById('no-results').textContent = errMsg;
+        document.getElementById('no-results').style.display = 'block';
+        return;
+      }
       const container = document.getElementById('searchResults');
       data.results.forEach(m => {
         const card = document.createElement('div'); card.className = 'movie-card'; card.dataset.id = m.imdbID;

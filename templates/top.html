@@ -42,14 +42,14 @@
   }
   .top-subtab:hover { color:var(--star-white); }
   .top-subtab.active { color:var(--gold); border-bottom-color:var(--gold); }
-  #genre-tbody tr, #era-tbody tr { border-bottom:1px solid rgba(64,200,240,.06); }
+  #genre-tbody tr, #era-
   #genre-tbody td, #era-tbody td { padding:8px 12px; color:var(--star-white); }
   .stat-bar { height:6px; border-radius:3px; background:linear-gradient(90deg,var(--cyan-dim),var(--cyan)); display:inline-block; margin-left:8px; vertical-align:middle; }
   .expand-btn { display:inline-flex; align-items:center; gap:4px; font-size:.72rem; color:var(--dim-white); background:none; border:none; cursor:pointer; padding:3px 0 0; font-family:'Inter',sans-serif; transition:color .15s; }
   .expand-btn:hover { color:var(--cyan); }
   .expand-btn .arrow { transition:transform .2s; display:inline-block; }
   .expand-btn.open .arrow { transform:rotate(180deg); }
-  .details-row td { background:rgba(13,31,60,0.58); border-bottom:1px solid var(--panel-border) !important; padding:12px 16px !important; border-left:none !important; }
+  .details-row td { background:rgba(13,31,60,0.72); border-bottom:1px solid var(--panel-border) !important; padding:12px 16px !important; border-left:none !important; }
   .details-inner { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; font-size:.83rem; }
   @media(max-width:700px){ .details-inner { grid-template-columns:1fr; } }
   .details-inner strong { color:var(--cyan); font-weight:600; display:block; margin-bottom:3px; font-size:.72rem; text-transform:uppercase; letter-spacing:.06em; }
@@ -71,7 +71,7 @@
 
 {% block content %}
 <div class="top-header">
-  <div style="background:rgba(3,5,15,0.65);padding:14px 20px;border-radius:10px;backdrop-filter:blur(6px);">
+  <div style="background:rgba(13,31,60,0.88);border:1px solid var(--panel-border);padding:14px 20px;border-radius:10px;backdrop-filter:blur(8px);">
     <h2 class="top-title">JZ's <em>Top Movies</em></h2>
     <p style="font-size:.85rem;color:rgba(255,255,255,.8);margin-top:6px;">{{ total_rated }} reviewed movies — click any title for details</p>
   </div>
@@ -79,14 +79,14 @@
 </div>
 
 <!-- Sub-tabs -->
-<div style="display:flex;gap:0;border-bottom:1px solid var(--panel-border);margin-bottom:20px;">
+<div style="display:flex;gap:0;border:1px solid var(--panel-border);border-radius:8px 8px 0 0;background:rgba(13,31,60,0.88);margin-bottom:0;padding:0 8px;">
   <button class="top-subtab active" data-subtab="movies" onclick="switchSubtab('movies',this)">🎬 Top Movies</button>
   <button class="top-subtab" data-subtab="stats" onclick="switchSubtab('stats',this)">📊 My Stats</button>
 </div>
 
 <!-- Movies tab -->
 <div id="subtab-movies">
-<div class="panel">
+<div class="panel" style="border-radius:0 0 12px 12px;margin-top:0;">
   {% if movies %}
   <div class="table-wrap">
     <table id="top-table">

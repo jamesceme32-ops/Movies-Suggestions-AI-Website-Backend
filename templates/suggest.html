@@ -44,7 +44,7 @@
   .title-btn.open::after { content:' ▴'; color:var(--cyan); }
 
   /* Details row */
-  .details-row td { background:rgba(13,31,60,0.58); border-bottom:1px solid var(--panel-border) !important; padding:14px 16px !important; }
+  .details-row td { background:rgba(13,31,60,0.72); border-bottom:1px solid var(--panel-border) !important; padding:14px 16px !important; }
   .details-inner { display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; font-size:.83rem; }
   @media(max-width:700px){ .details-inner { grid-template-columns:1fr; } }
   .details-inner strong { color:var(--cyan); font-weight:600; display:block; margin-bottom:4px; font-size:.72rem; text-transform:uppercase; letter-spacing:.06em; }
@@ -69,7 +69,7 @@
   <div class="panel-title">JZ'S TASTE PROFILE {% if profile.ml %}<span class="ml-badge">ML ACTIVE</span>{% endif %}</div>
   {% if profile.rated > 0 %}
   <div class="profile-grid">
-    <div class="profile-item"><div class="profile-item-label">Top Genres (count)</div><div class="profile-item-value">{{ profile.genres }}</div></div>
+    <div class="profile-item"><div class="profile-item-label">Top Genres (w/ Movie Count)</div><div class="profile-item-value">{{ profile.genres }}</div></div>
     <div class="profile-item"><div class="profile-item-label">Favourite Eras</div><div class="profile-item-value">{{ profile.eras }}</div></div>
     <div class="profile-item"><div class="profile-item-label">Preferred Duration</div><div class="profile-item-value">{{ profile.durs }}</div></div>
     <div class="profile-item"><div class="profile-item-label">Avg Review Score</div><div class="profile-item-value">{{ profile.global_mean }}/10</div></div>
