@@ -170,8 +170,51 @@
   <div class="tab-pane" id="tab-edit">
     <div class="panel">
       <div class="panel-title">EDIT MOVIES</div>
-      <input type="text" class="edit-search" id="editSearch" placeholder="Search your movie list...">
-      <div class="edit-list" id="editList"><div style="color:var(--dim-white);font-size:.83rem;padding:12px;">Loading...</div></div>
+      <p style="font-size:.84rem;color:var(--dim-white);margin-bottom:16px;">Search for a movie, then click Edit to update its details.</p>
+
+      <div style="display:flex;gap:10px;margin-bottom:16px;">
+        <input type="text" id="editSearch" placeholder="Search by title..." style="flex:1;" onkeydown="if(event.key==='Enter') doEditSearch()">
+        <button class="btn btn-primary btn-sm" onclick="doEditSearch()">🔍 Search</button>
+      </div>
+
+      <div id="editResults" style="margin-bottom:16px;"></div>
+
+      <!-- Edit form — hidden until a movie is selected -->
+      <div id="editForm" style="display:none;">
+        <div class="panel-title" style="margin-bottom:12px;">EDITING: <span id="editFormTitle" style="color:var(--gold);"></span></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+          <div><div class="form-label">Title</div><input type="text" id="ef-title" placeholder="Movie title"></div>
+          <div><div class="form-label">Year</div><input type="text" id="ef-year" placeholder="1984" maxlength="4"></div>
+          <div><div class="form-label">Genre</div><input type="text" id="ef-genre" placeholder="Drama/Thriller"></div>
+          <div><div class="form-label">Duration</div><input type="text" id="ef-duration" placeholder="2h 15m"></div>
+        </div>
+        <div class="watched-toggle" style="margin-bottom:14px;">
+          <input type="checkbox" id="ef-watched">
+          <label for="ef-watched">Watched</label>
+        </div>
+        <div id="ef-score-section" style="display:none;margin-bottom:16px;">
+          <div class="form-label" style="margin-bottom:8px;">My Score</div>
+          <div class="score-row" id="ef-score-row">
+            <button class="score-btn" data-score="1">1</button>
+            <button class="score-btn" data-score="2">2</button>
+            <button class="score-btn" data-score="3">3</button>
+            <button class="score-btn" data-score="4">4</button>
+            <button class="score-btn" data-score="5">5</button>
+            <button class="score-btn" data-score="6">6</button>
+            <button class="score-btn" data-score="7">7</button>
+            <button class="score-btn" data-score="8">8</button>
+            <button class="score-btn" data-score="9">9</button>
+            <button class="score-btn" data-score="10">10</button>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;">
+          <button class="btn btn-primary" id="saveEditBtn" onclick="saveEditForm()">
+            <span id="saveEditTxt">💾 Save Changes</span>
+            <span id="saveEditLoad" style="display:none">Saving...</span>
+          </button>
+          <button class="btn btn-secondary btn-sm" onclick="cancelEdit()">Cancel</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -433,122 +476,144 @@
   // ══════════════════════════════════════════════
   let editLoaded=false, allMovies=[];
 
-  async function loadEdit() {
-    editLoaded=true;
+  // ══ EDIT TAB ══════════════════════════════════════════════════════════
+  let editLoaded = false;
+  let editAllMovies = [];  // separate from poolMovies to avoid conflicts
+  let editCurrentOrig = null;  // the original movie being edited
+
+  async function ensureEditLoaded() {
+    if (editLoaded) return;
+    editLoaded = true;
     const res  = await fetch('/api/all_movies');
     const data = await res.json();
-    allMovies  = data.movies||[];
-    renderEdit('');
+    editAllMovies = data.movies || [];
   }
 
-  function renderEdit(filter) {
-    const el=document.getElementById('editList'); const fl=filter.toLowerCase();
-    const filtered=allMovies.filter(m=>!fl||m.title.toLowerCase().includes(fl));
-    if (!filtered.length) { el.innerHTML='<div style="color:var(--dim-white);font-size:.83rem;padding:12px;">No movies found.</div>'; return; }
-    el.innerHTML=filtered.map((m,i)=>{
-      const scoreVal = m.my_score !== null && m.my_score !== undefined ? m.my_score : '';
-      return `<div class="edit-item">
-        <div class="edit-header" onclick="toggleEdit(this)">
-          <div><div class="eh-title">${m.title} (${m.year||'?'})</div>
-          <div class="eh-meta">${m.genre||''} ${m.my_score!=null?'· Score: '+m.my_score+'/10':''} ${m.watched?'· Watched':'· Unwatched'}</div></div>
-          <span class="eh-arrow">▼</span>
+  async function doEditSearch() {
+    await ensureEditLoaded();
+    const q  = document.getElementById('editSearch').value.trim().toLowerCase();
+    const el = document.getElementById('editResults');
+    if (!q) { el.innerHTML = '<div style="color:var(--dim-white);font-size:.83rem;">Type a title and press Search.</div>'; return; }
+
+    const matches = editAllMovies.filter(m => m.title.toLowerCase().includes(q));
+    if (!matches.length) {
+      el.innerHTML = '<div style="color:var(--dim-white);font-size:.83rem;">No movies found.</div>';
+      document.getElementById('editForm').style.display = 'none';
+      return;
+    }
+
+    el.innerHTML = matches.slice(0, 20).map(m => `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid var(--panel-border);">
+        <div>
+          <span style="font-size:.88rem;font-weight:500;">${m.title}</span>
+          <span style="font-size:.75rem;color:var(--dim-white);margin-left:8px;">${m.year||'?'} ${m.my_score != null ? '· '+m.my_score+'/10' : ''} ${m.watched ? '· Watched' : ''}</span>
         </div>
-        <div class="edit-body" data-stable-key="${encodeURIComponent(m.title)+'||'+(m.year||'')}">
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
-            <div>
-              <div class="form-label">Title</div>
-              <input type="text" class="ef-title" value="${m.title}" placeholder="Movie title">
-            </div>
-            <div>
-              <div class="form-label">Year</div>
-              <input type="text" class="ef-year" value="${m.year||''}" placeholder="1984" maxlength="4" style="width:100%;">
-            </div>
-            <div>
-              <div class="form-label">Genre</div>
-              <input type="text" class="ef-genre" value="${m.genre||''}" placeholder="Drama/Thriller">
-            </div>
-            <div>
-              <div class="form-label">Duration</div>
-              <input type="text" class="ef-duration" value="${m.duration||''}" placeholder="2h 15m">
-            </div>
-          </div>
-          <div class="watched-toggle" style="margin-bottom:14px;">
-            <input type="checkbox" id="ew-${i}" ${m.watched?'checked':''} onchange="updateWatched(this,${i})">
-            <label for="ew-${i}">Watched</label>
-          </div>
-          <div id="escore-section-${i}" style="${m.watched?'':'display:none;'}">
-            <div class="form-label" style="margin-bottom:8px;">My Score</div>
-            <div class="score-row">
-              ${[1,2,3,4,5,6,7,8,9,10].map(n=>`<button class="score-btn ${scoreVal==n?'active':''}" onclick="setEditScore(this,${i},${n})">${n}</button>`).join('')}
-            </div>
-          </div>
-          <button class="btn btn-primary btn-sm" onclick="saveEdit(this)" style="margin-top:4px;">💾 Save Changes</button>
-        </div>
-      </div>`;
-    }).join('');
+        <button class="btn btn-secondary btn-sm"
+          onclick="openEditForm(${JSON.stringify(m).replace(/'/g, '&#39;')})">
+          ✏️ Edit
+        </button>
+      </div>`).join('');
   }
 
-  function toggleEdit(header) {
-    const body=header.nextElementSibling;
-    const open=body.classList.contains('open');
-    document.querySelectorAll('.edit-header').forEach(h=>h.classList.remove('open'));
-    document.querySelectorAll('.edit-body').forEach(b=>b.classList.remove('open'));
-    if(!open){header.classList.add('open');body.classList.add('open');}
-  }
-  function updateWatched(cb,idx) {
-    document.getElementById(`escore-section-${idx}`).style.display=cb.checked?'block':'none';
-  }
-  function setEditScore(btn,idx,score) {
-    btn.closest('.score-row').querySelectorAll('.score-btn').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');
+  function openEditForm(m) {
+    editCurrentOrig = m;
+    document.getElementById('editFormTitle').textContent = m.title + ' (' + (m.year||'?') + ')';
+    document.getElementById('ef-title').value    = m.title || '';
+    document.getElementById('ef-year').value     = m.year  || '';
+    document.getElementById('ef-genre').value    = m.genre || '';
+    document.getElementById('ef-duration').value = m.duration || '';
+
+    const watchedCb = document.getElementById('ef-watched');
+    watchedCb.checked = !!m.watched;
+    document.getElementById('ef-score-section').style.display = m.watched ? 'block' : 'none';
+
+    // Set score buttons
+    document.querySelectorAll('#ef-score-row .score-btn').forEach(b => {
+      b.classList.toggle('active', parseInt(b.dataset.score) === m.my_score);
+    });
+
+    document.getElementById('editForm').style.display = 'block';
+    document.getElementById('editForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  async function saveEdit(btn) {
-    const body       = btn.closest('.edit-body');
-    const stableKey  = body.dataset.stableKey;
-    const title      = body.querySelector('.ef-title').value.trim();
-    const year       = body.querySelector('.ef-year').value.trim();
-    const genre      = body.querySelector('.ef-genre').value.trim();
-    const duration   = body.querySelector('.ef-duration').value.trim();
-    const watched    = body.querySelector('input[type="checkbox"]').checked;
-    const scoreBtn   = body.querySelector('.score-btn.active');
-    const my_score   = scoreBtn ? parseInt(scoreBtn.textContent) : null;
+  function cancelEdit() {
+    editCurrentOrig = null;
+    document.getElementById('editForm').style.display = 'none';
+  }
+
+  // Watched checkbox toggles score section
+  document.getElementById('ef-watched').addEventListener('change', function() {
+    document.getElementById('ef-score-section').style.display = this.checked ? 'block' : 'none';
+    if (!this.checked) {
+      document.querySelectorAll('#ef-score-row .score-btn').forEach(b => b.classList.remove('active'));
+    }
+  });
+
+  // Score buttons
+  document.querySelectorAll('#ef-score-row .score-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#ef-score-row .score-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+
+  async function saveEditForm() {
+    if (!editCurrentOrig) return;
+    const title    = document.getElementById('ef-title').value.trim();
+    const year     = document.getElementById('ef-year').value.trim();
+    const genre    = document.getElementById('ef-genre').value.trim();
+    const duration = document.getElementById('ef-duration').value.trim();
+    const watched  = document.getElementById('ef-watched').checked;
+    const scoreBtn = document.querySelector('#ef-score-row .score-btn.active');
+    const my_score = scoreBtn ? parseInt(scoreBtn.dataset.score) : null;
+
     if (!title) { showFlash('Title cannot be empty.', false); return; }
+    if (watched && my_score === null) { showFlash('Please select a score for watched movies.', false); return; }
 
-    // Find original movie in allMovies using stable key
-    const orig = allMovies.find(m =>
-      encodeURIComponent(m.title) + '||' + (m.year||'') === stableKey
-    );
-    if (!orig) { showFlash('Could not find original movie. Try reloading.', false); return; }
+    document.getElementById('saveEditTxt').style.display  = 'none';
+    document.getElementById('saveEditLoad').style.display = 'inline';
+    document.getElementById('saveEditBtn').disabled = true;
 
     try {
       const res = await fetch('/api/edit_movie', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          orig_title: orig.title,
-          orig_year:  orig.year,
+          orig_title: editCurrentOrig.title,
+          orig_year:  editCurrentOrig.year,
           title, year: year ? parseInt(year) : null,
           genre, duration, watched, my_score
         })
       });
       const data = await res.json();
       if (data.success) {
-        showFlash(`✅ "${title}" updated!`, true);
-        orig.title    = title;
-        orig.year     = year ? parseInt(year) : null;
-        orig.genre    = genre;
-        orig.duration = duration;
-        orig.watched  = watched;
-        orig.my_score = my_score;
-        renderEdit(document.getElementById('editSearch').value);
+        showFlash(`✅ "${title}" updated successfully!`, true);
+        // Update local cache
+        const idx = editAllMovies.findIndex(m =>
+          m.title === editCurrentOrig.title && String(m.year||'') === String(editCurrentOrig.year||'')
+        );
+        if (idx >= 0) {
+          editAllMovies[idx] = { ...editAllMovies[idx], title, year: year ? parseInt(year) : null, genre, duration, watched, my_score };
+        }
+        editCurrentOrig = null;
+        document.getElementById('editForm').style.display = 'none';
+        // Refresh search results
+        doEditSearch();
+        // Force reload on next tab switch
+        editLoaded = false;
+        poolLoaded = false;
       } else {
-        showFlash(data.error || 'Failed.', false);
+        showFlash(data.error || 'Save failed. Try again.', false);
       }
-    } catch(e) { showFlash('Something went wrong: ' + e.message, false); }
+    } catch(e) {
+      showFlash('Network error: ' + e.message, false);
+    }
+
+    document.getElementById('saveEditTxt').style.display  = 'inline';
+    document.getElementById('saveEditLoad').style.display = 'none';
+    document.getElementById('saveEditBtn').disabled = false;
   }
 
-  document.getElementById('editSearch').addEventListener('input', e => { if(editLoaded) renderEdit(e.target.value); });
 
   // ══════════════════════════════════════════════
   //  TAB 4: REFRESH IMDB
