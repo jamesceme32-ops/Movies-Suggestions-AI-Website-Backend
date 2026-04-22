@@ -185,9 +185,9 @@
     <table id="genre-table" style="width:100%;border-collapse:collapse;font-size:.85rem;">
       <thead>
         <tr>
-          <th style="text-align:left;padding:8px 12px;color:var(--cyan);font-family:'Playfair Display',serif;border-bottom:1px solid var(--panel-border);">Genre</th>
-          <th style="text-align:right;padding:8px 12px;color:var(--cyan);font-family:'Playfair Display',serif;border-bottom:1px solid var(--panel-border);">Movies</th>
-          <th style="text-align:right;padding:8px 12px;color:var(--cyan);font-family:'Playfair Display',serif;border-bottom:1px solid var(--panel-border);">Avg Score</th>
+          <th onclick="sortStats('genre',0)" style="text-align:left;padding:8px 12px;color:var(--cyan);font-family:'Playfair Display',serif;border-bottom:1px solid var(--panel-border);cursor:pointer;">Genre ↕</th>
+          <th onclick="sortStats('genre',1)" style="text-align:right;padding:8px 12px;color:var(--cyan);font-family:'Playfair Display',serif;border-bottom:1px solid var(--panel-border);cursor:pointer;">Movies ↕</th>
+          <th onclick="sortStats('genre',2)" style="text-align:right;padding:8px 12px;color:var(--cyan);font-family:'Playfair Display',serif;border-bottom:1px solid var(--panel-border);cursor:pointer;">Avg Score ↕</th>
         </tr>
       </thead>
       <tbody id="genre-tbody"></tbody>
@@ -200,9 +200,9 @@
     <table id="era-table" style="width:100%;border-collapse:collapse;font-size:.85rem;">
       <thead>
         <tr>
-          <th style="text-align:left;padding:8px 12px;color:var(--cyan);font-family:'Playfair Display',serif;border-bottom:1px solid var(--panel-border);">Era</th>
-          <th style="text-align:right;padding:8px 12px;color:var(--cyan);font-family:'Playfair Display',serif;border-bottom:1px solid var(--panel-border);">Movies</th>
-          <th style="text-align:right;padding:8px 12px;color:var(--cyan);font-family:'Playfair Display',serif;border-bottom:1px solid var(--panel-border);">Avg Score</th>
+          <th onclick="sortStats('era',0)" style="text-align:left;padding:8px 12px;color:var(--cyan);font-family:'Playfair Display',serif;border-bottom:1px solid var(--panel-border);cursor:pointer;">Era ↕</th>
+          <th onclick="sortStats('era',1)" style="text-align:right;padding:8px 12px;color:var(--cyan);font-family:'Playfair Display',serif;border-bottom:1px solid var(--panel-border);cursor:pointer;">Movies ↕</th>
+          <th onclick="sortStats('era',2)" style="text-align:right;padding:8px 12px;color:var(--cyan);font-family:'Playfair Display',serif;border-bottom:1px solid var(--panel-border);cursor:pointer;">Avg Score ↕</th>
         </tr>
       </thead>
       <tbody id="era-tbody"></tbody>
@@ -231,31 +231,14 @@
       const res  = await fetch('/api/watched_stats');
       const data = await res.json();
 
-      // Genre table
-      const gtbody = document.getElementById('genre-tbody');
-      const maxG   = Math.max(...data.genres.map(g => g.count), 1);
-      gtbody.innerHTML = data.genres.map(g => `
-        <tr>
-          <td>${g.name}</td>
-          <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--dim-white);">${g.count}
-            <span class="stat-bar" style="width:${Math.round(g.count/maxG*80)}px;"></span>
-          </td>
-          <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--gold);">${g.avg}</td>
-        </tr>`).join('');
+      _statsData = data;
+      const maxG = Math.max(...data.genres.map(g => g.count), 1);
+      renderGenreTable(data.genres, maxG);
       document.getElementById('genre-stats-loading').style.display = 'none';
       document.getElementById('genre-stats-table').style.display   = 'block';
 
-      // Era table
-      const etbody = document.getElementById('era-tbody');
-      const maxE   = Math.max(...data.eras.map(e => e.count), 1);
-      etbody.innerHTML = data.eras.map(e => `
-        <tr>
-          <td>${e.name}</td>
-          <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--dim-white);">${e.count}
-            <span class="stat-bar" style="width:${Math.round(e.count/maxE*80)}px;"></span>
-          </td>
-          <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--gold);">${e.avg}</td>
-        </tr>`).join('');
+      const maxE = Math.max(...data.eras.map(e => e.count), 1);
+      renderEraTable(data.eras, maxE);
       document.getElementById('era-stats-table').style.display = 'block';
 
     } catch(e) {
@@ -263,7 +246,50 @@
     }
   }
 
-document.addEventListener("DOMContentLoaded", function() {
+  let _statsData = { genres: [], eras: [] };
+  let _sortState  = { genre: { col: 1, asc: false }, era: { col: 0, asc: true } };
+
+  function renderGenreTable(data, maxG) {
+    const tbody = document.getElementById('genre-tbody');
+    tbody.innerHTML = data.map(g => `
+      <tr>
+        <td>${g.name}</td>
+        <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--dim-white);">${g.count}
+          <span class="stat-bar" style="width:${Math.round(g.count/maxG*80)}px;"></span>
+        </td>
+        <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--gold);">${g.avg}</td>
+      </tr>`).join('');
+  }
+
+  function renderEraTable(data, maxE) {
+    const tbody = document.getElementById('era-tbody');
+    tbody.innerHTML = data.map(e => `
+      <tr>
+        <td>${e.name}</td>
+        <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--dim-white);">${e.count}
+          <span class="stat-bar" style="width:${Math.round(e.count/maxE*80)}px;"></span>
+        </td>
+        <td style="text-align:right;font-family:'DM Mono',monospace;color:var(--gold);">${e.avg}</td>
+      </tr>`).join('');
+  }
+
+  window.sortStats = function(table, col) {
+    const state = _sortState[table];
+    const asc   = (state.col === col) ? !state.asc : (col === 0);
+    state.col = col; state.asc = asc;
+    const data  = table === 'genre' ? [..._statsData.genres] : [..._statsData.eras];
+    data.sort((a, b) => {
+      const vals = [a.name, a.count, a.avg];
+      const valb = [b.name, b.count, b.avg];
+      const av = vals[col], bv = valb[col];
+      if (typeof av === 'string') return asc ? av.localeCompare(bv) : bv.localeCompare(av);
+      return asc ? av - bv : bv - av;
+    });
+    const max = Math.max(...data.map(x => x.count), 1);
+    if (table === 'genre') renderGenreTable(data, max);
+    else renderEraTable(data, max);
+  };
+
   document.querySelectorAll('.title-btn').forEach(btn=>{
     btn.addEventListener('click',()=>{
       const row=document.getElementById(`details-${btn.dataset.idx}`);
@@ -291,6 +317,5 @@ document.addEventListener("DOMContentLoaded", function() {
       });
     });
   }
-}); // end DOMContentLoaded
 </script>
 {% endblock %}

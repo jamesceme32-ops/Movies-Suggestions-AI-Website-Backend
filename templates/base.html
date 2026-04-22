@@ -198,8 +198,9 @@
       <a class="nav-link" href="/reset">↩ Reload</a>
     </div>
   </nav>
-  <div class="page page-fade">{% block content %}{% endblock %}</div>
+  <div class="page page-fade">{% block content %}{% endblock %}
   {% block scripts %}{% endblock %}
+  </div>
 
   <script>
     // ── Poster Modal ─────────────────────────────────────────────────────
@@ -214,26 +215,84 @@
       document.getElementById('poster-modal-img').src = '';
       document.body.style.overflow = '';
     }
-    document.addEventListener('keydown', e => { if(e.key === 'Escape') closePosterModal(); });
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') closePosterModal();
+    });
 
-    // ── Video continuity: save/restore timestamp ──────────────────────────
-    const vid = document.getElementById('bg-video');
-    if (vid) {
-      try {
-        const t = parseFloat(sessionStorage.getItem('bgVideoTime') || '0');
-        // Only seek if within the video's duration (loaded)
-        vid.addEventListener('loadedmetadata', () => {
-          if (t > 0 && t < vid.duration) vid.currentTime = t;
-        });
-      } catch(e) {}
-      // Save position before leaving — fires reliably on all browsers
-      document.addEventListener('visibilitychange', () => {
-        try { sessionStorage.setItem('bgVideoTime', vid.currentTime); } catch(e) {}
-      });
-      window.addEventListener('pagehide', () => {
-        try { sessionStorage.setItem('bgVideoTime', vid.currentTime); } catch(e) {}
-      });
+    // ── SPA Navigation — video never stops ───────────────────────────────
+    function _shouldIntercept(href) {
+      if (!href) return false;
+      if (href.startsWith('http') || href.startsWith('//')) return false;
+      if (href.startsWith('#') || href.startsWith('mailto') || href.startsWith('javascript')) return false;
+      if (href === '/reset') return false; // let reset do a real reload
+      return true;
     }
+
+    async function _spaNavigate(url) {
+      try {
+        const res = await fetch(url, { credentials: 'same-origin' });
+        if (!res.ok) { window.location.href = url; return; }
+        const html  = await res.text();
+        const parser = new DOMParser();
+        const newDoc = parser.parseFromString(html, 'text/html');
+        const newPage = newDoc.querySelector('.page');
+        if (!newPage) { window.location.href = url; return; }
+
+        // Update title and nav
+        document.title = newDoc.title;
+        const newNav = newDoc.querySelector('nav');
+        if (newNav) document.querySelector('nav').innerHTML = newNav.innerHTML;
+
+        // Extract scripts from new page content
+        const scripts = Array.from(newPage.querySelectorAll('script'));
+        scripts.forEach(s => s.remove());
+
+        // Remove old page scripts
+        document.querySelectorAll('script[data-spa]').forEach(s => s.remove());
+
+        // Swap page content
+        const page = document.querySelector('.page');
+        page.innerHTML = newPage.innerHTML;
+
+        // Re-run page scripts
+        for (const old of scripts) {
+          const s = document.createElement('script');
+          s.setAttribute('data-spa', '1');
+          if (old.src) { s.src = old.src; }
+          else { s.textContent = old.textContent; }
+          document.body.appendChild(s);
+        }
+
+        history.pushState({ url }, '', url);
+        window.scrollTo(0, 0);
+
+        // Trigger fade animation
+        page.style.animation = 'none';
+        void page.offsetWidth;
+        page.style.animation = '';
+
+      } catch(e) {
+        window.location.href = url;
+      }
+    }
+
+    // Intercept internal link clicks
+    document.addEventListener('click', function(e) {
+      const a = e.target.closest('a[href]');
+      if (!a || a.target === '_blank' || a.getAttribute('onclick')) return;
+      const href = a.getAttribute('href');
+      if (!_shouldIntercept(href)) return;
+      e.preventDefault();
+      _spaNavigate(href);
+    });
+
+    // Handle browser back/forward
+    window.addEventListener('popstate', e => {
+      if (e.state?.url) _spaNavigate(e.state.url);
+      else window.location.reload();
+    });
+
+    history.replaceState({ url: window.location.pathname + window.location.search }, '', window.location.href);
   </script>
 
 </body>
