@@ -18,8 +18,8 @@
       --gold-dim:     #a07820;
       --cyan:         #40c8f0;
       --cyan-dim:     #1a5a70;
-      --panel:        rgba(13,31,60,0.42);
-      --panel-border: rgba(64,200,240,0.22);
+      --panel:        rgba(13,31,60,0.60);
+      --panel-border: rgba(64,200,240,0.25);
       --glow-gold:    0 0 20px rgba(240,192,64,0.3);
       --glow-cyan:    0 0 20px rgba(64,200,240,0.3);
     }
@@ -59,7 +59,7 @@
       position:relative; z-index:2;
       display:flex; align-items:center; justify-content:space-between;
       padding:18px 32px; border-bottom:1px solid var(--panel-border);
-      backdrop-filter:blur(10px); background:rgba(3,5,15,.32);
+      backdrop-filter:blur(10px); background:rgba(3,5,15,.50);
       flex-wrap:wrap; gap:10px;
     }
     /* Fixed: entire brand name is gold, no color split */
@@ -150,7 +150,7 @@
 <body>
   <!-- Background video — upload background.mp4 to R2 and set URL below -->
   <video id="bg-video" autoplay muted loop playsinline>
-    <source src="https://cdn.jzcinematch.com/background.mp4" type="video/mp4">
+    <source src="https://YOUR_R2_PUBLIC_URL/background.mp4" type="video/mp4">
   </video>
 
   <!-- Poster lightbox -->
