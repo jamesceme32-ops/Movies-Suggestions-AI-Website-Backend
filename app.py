@@ -897,6 +897,27 @@ def admin_logout():
 #  ADD / EDIT
 # ══════════════════════════════════════════════
 
+
+@app.route("/admin/debug-add")
+@admin_required
+def admin_debug_add():
+    """Confirms admin session and tests search API."""
+    test = None
+    if OMDB_API_KEY:
+        try:
+            r = requests.get("https://www.omdbapi.com/",
+                params={"apikey": OMDB_API_KEY, "s": "Godfather", "type": "movie"},
+                timeout=8)
+            test = r.json()
+        except Exception as e:
+            test = {"error": str(e)}
+    return jsonify({
+        "admin_session":  session.get("admin", False),
+        "omdb_key_set":   bool(OMDB_API_KEY),
+        "omdb_key_chars": len(OMDB_API_KEY),
+        "omdb_test":      test,
+    })
+
 @app.route("/add")
 @admin_required
 def add_movie():
