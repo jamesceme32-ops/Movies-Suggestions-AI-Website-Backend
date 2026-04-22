@@ -690,16 +690,19 @@ def suggest():
     # but show by raw average for display
     raw_genre = profile.get("raw_genre", {})
     cnt_genre = profile.get("cnt_genre", {})
-    # Top genres sorted by raw score, with count shown
-    top_genres_list = sorted(raw_genre.items(), key=lambda x: -x[1])[:3]
-    top_genres = ", ".join(f"{k} ({cnt_genre.get(k,0)})" for k,v in top_genres_list)
+    bay_genre = profile.get("genre", {})  # normalized Bayesian scores, lowercase keys
+    # Sort by Bayesian score so single-movie genres don't dominate
+    top_genres_list = sorted(bay_genre.items(), key=lambda x: -x[1])[:3]
+    top_genres = ", ".join(
+        f"{k.title()} ({cnt_genre.get(k, 0)})" for k, _ in top_genres_list
+    )
     profile_summary = {
-        "rated": profile.get("rated_count",0),
-        "genres": top_genres,
-        "eras": top(profile.get("raw_era",{})),
-        "durs": top(profile.get("raw_dur",{}),2),
-        "bias": (f"+{bias:.1f}" if bias>=0 else f"{bias:.1f}") + " vs IMDb",
-        "ml": store["model"] is not None,
+        "rated":       profile.get("rated_count", 0),
+        "genres":      top_genres,
+        "eras":        top(profile.get("raw_era", {})),
+        "durs":        top(profile.get("raw_dur", {}), 2),
+        "bias":        (f"+{bias:.1f}" if bias >= 0 else f"{bias:.1f}") + " vs IMDb",
+        "ml":          store["model"] is not None,
         "global_mean": profile.get("global_mean", 0),
     }
     all_genres = extract_genres(df)
@@ -1363,7 +1366,7 @@ def _tmdb_refresh_background():
         # and are missing cast or poster
         missing = [m for m in movies
                    if _extract_imdb_id(m.get("imdb_url", ""))
-                   and (not m.get("cast") or not m.get("poster_url"))]
+                   and (not m.get("cast") or not m.get("poster_url") or not m.get("language"))]
 
         TMDB_REFRESH_STATUS.update({
             "running": True, "done": 0, "total": len(missing),
