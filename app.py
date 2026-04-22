@@ -297,21 +297,34 @@ def omdb_by_title(title: str, year=None) -> dict:
         if d.get("Response") == "True":
             return _parse_result(d)
 
-        # Step 2: fuzzy search fallback
+        # Step 2: fuzzy search fallback — filter to movies only, match year strictly
         params2 = {"apikey": OMDB_API_KEY, "s": title, "type": "movie"}
         r2 = requests.get("https://www.omdbapi.com/", params=params2, timeout=8)
         d2 = r2.json()
         if d2.get("Response") == "True":
             results = d2.get("Search", [])
-            if results:
-                if year:
-                    exact = [x for x in results if str(x.get("Year",""))[:4] == str(year)]
-                    best  = exact[0] if exact else min(
-                        results,
-                        key=lambda x: abs(int((x.get("Year","0") or "0")[:4]) - int(year))
-                    )
-                else:
-                    best = results[0]
+            # Only keep entries that are actually movies (Type=movie) and year within 1 year
+            movie_results = [x for x in results if x.get("Type","") == "movie"]
+            if not movie_results:
+                movie_results = results  # fallback if type not set
+
+            best = None
+            if year and movie_results:
+                # Prefer exact year match
+                exact = [x for x in movie_results
+                         if str(x.get("Year",""))[:4] == str(year)]
+                # Then within 1 year
+                close = [x for x in movie_results
+                         if abs(int((x.get("Year","0") or "0")[:4]) - int(year)) <= 1]
+                if exact:
+                    best = exact[0]
+                elif close:
+                    best = min(close, key=lambda x: abs(int((x.get("Year","0") or "0")[:4]) - int(year)))
+                # Don't pick a result if year is off by more than 1
+            elif movie_results:
+                best = movie_results[0]
+
+            if best:
                 imdb_id = best.get("imdbID", "")
                 if imdb_id:
                     r3 = requests.get("https://www.omdbapi.com/",
