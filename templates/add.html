@@ -328,16 +328,21 @@
   };
 
   // Check admin session on load
-  fetch('/debug-all-movies').then(r => r.json()).then(d => {
+  fetch('/debug-all-movies').then(function(r) { return r.json(); }).then(function(d) {
     var el = document.getElementById('session-status');
+    if (!el) return;
     var adminOk = d.admin_in_session;
-    el.innerHTML = (adminOk ? '🟢 Logged in' : '🔴 Not logged in — <a href="/admin/login?next=/add" style="color:var(--gold);">Login</a>') +
-      ' · Movies in DB: <strong style="color:var(--gold);">' + d.movie_count + '</strong>' +
-      ' · <button onclick="document.getElementById('debug-panel').style.display='block'" style="background:none;border:none;color:var(--cyan);cursor:pointer;font-size:.72rem;">Show Debug</button>';
-    el.style.color = adminOk ? 'rgba(64,200,240,0.7)' : '#fca5a5';
+    if (adminOk) {
+      el.textContent = '🟢 Logged in · Movies in DB: ' + d.movie_count;
+      el.style.color = 'rgba(64,200,240,0.7)';
+    } else {
+      el.innerHTML = '🔴 Not logged in — <a href="/admin/login?next=/add" style="color:var(--gold);">Login here</a>';
+      el.style.color = '#fca5a5';
+    }
     dbgLog('Page loaded. admin=' + adminOk + ' movies=' + d.movie_count);
-  }).catch(e => {
-    document.getElementById('session-status').textContent = '⚠️ Could not check session: ' + e.message;
+  }).catch(function(e) {
+    var el = document.getElementById('session-status');
+    if (el) el.textContent = 'Could not check session: ' + e.message;
   });
 
   // ── Tabs ──────────────────────────────────────────────────────────────────
