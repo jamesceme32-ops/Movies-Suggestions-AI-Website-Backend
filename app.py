@@ -927,6 +927,50 @@ def admin_debug_add():
         "omdb_test":      test,
     })
 
+
+@app.route("/debug-search")
+def debug_search():
+    """Open debug endpoint - tests search without auth requirement."""
+    q = request.args.get("q", "Godfather")
+    results = []
+    error = None
+    omdb_raw = None
+    if OMDB_API_KEY:
+        try:
+            r = requests.get("https://www.omdbapi.com/",
+                params={"apikey": OMDB_API_KEY, "s": q, "type": "movie"},
+                timeout=8)
+            omdb_raw = r.json()
+            if omdb_raw.get("Response") == "True":
+                results = omdb_raw.get("Search", [])
+        except Exception as e:
+            error = str(e)
+    return jsonify({
+        "admin_in_session": session.get("admin", False),
+        "omdb_key_set": bool(OMDB_API_KEY),
+        "query": q,
+        "omdb_raw": omdb_raw,
+        "result_count": len(results),
+        "error": error,
+    })
+
+@app.route("/debug-all-movies")
+def debug_all_movies():
+    """Open debug endpoint - returns movie count without auth."""
+    sid = get_sid()
+    if sid not in STORE:
+        loaded = load_store_from_db(sid)
+    else:
+        loaded = True
+    df = get_df(sid)
+    return jsonify({
+        "admin_in_session": session.get("admin", False),
+        "store_loaded": loaded,
+        "movie_count": len(df) if df is not None else 0,
+        "sample": [{"title": r["Title"], "year": r.get("Release Year")}
+                   for _, r in df.head(3).iterrows()] if df is not None else [],
+    })
+
 @app.route("/add")
 @admin_required
 def add_movie():
