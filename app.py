@@ -264,58 +264,70 @@ def _fetch_one(imdb_id):
 
 def omdb_by_title(title: str, year=None) -> dict:
     """
-    Fetch full movie details in ONE API call using title + year.
-    Uses ?t= endpoint which returns complete details directly.
+    Fetch full movie details using title + year.
+    Step 1: exact ?t= lookup.
+    Step 2: if not found, fuzzy ?s= search — pick best year match.
     """
     if not OMDB_API_KEY: return {}
+
+    def _parse_result(d):
+        actors   = d.get("Actors", "")
+        top6     = ", ".join(a.strip() for a in actors.split(",")[:6])
+        lang_raw = d.get("Language", "")
+        language = lang_raw.split(",")[0].strip() if lang_raw else ""
+        imdb_id  = d.get("imdbID", "")
+        return {
+            "IMDB Rating": _safe_float(d.get("imdbRating")),
+            "Actors":      top6,
+            "Director":    d.get("Director", ""),
+            "Plot":        d.get("Plot", ""),
+            "Language":    language,
+            "imdb_id":     imdb_id,
+            "imdb_url":    f"https://www.imdb.com/title/{imdb_id}/" if imdb_id else "",
+            "genre":       d.get("Genre", "").replace(", ", "/"),
+            "duration":    d.get("Runtime", ""),
+        }
+
     try:
+        # Step 1: exact title lookup
         params = {"apikey": OMDB_API_KEY, "t": title, "plot": "short", "type": "movie"}
         if year: params["y"] = str(year)
         r = requests.get("https://www.omdbapi.com/", params=params, timeout=8)
         d = r.json()
         if d.get("Response") == "True":
-            actors = d.get("Actors", "")
-            top6   = ", ".join(a.strip() for a in actors.split(",")[:6])
-            imdb_id = d.get("imdbID", "")
-            lang_raw = d.get("Language", "")
-            language = lang_raw.split(",")[0].strip() if lang_raw else ""
-            return {
-                "IMDB Rating": _safe_float(d.get("imdbRating")),
-                "Actors":      top6,
-                "Director":    d.get("Director", ""),
-                "Plot":        d.get("Plot", ""),
-                "Language":    language,
-                "imdb_id":     imdb_id,
-                "imdb_url":    f"https://www.imdb.com/title/{imdb_id}/" if imdb_id else "",
-                "genre":       d.get("Genre", "").replace(", ", "/"),
-                "duration":    d.get("Runtime", ""),
-            }
+            return _parse_result(d)
+
+        # Step 2: fuzzy search fallback
+        params2 = {"apikey": OMDB_API_KEY, "s": title, "type": "movie"}
+        r2 = requests.get("https://www.omdbapi.com/", params=params2, timeout=8)
+        d2 = r2.json()
+        if d2.get("Response") == "True":
+            results = d2.get("Search", [])
+            if results:
+                if year:
+                    exact = [x for x in results if str(x.get("Year",""))[:4] == str(year)]
+                    best  = exact[0] if exact else min(
+                        results,
+                        key=lambda x: abs(int((x.get("Year","0") or "0")[:4]) - int(year))
+                    )
+                else:
+                    best = results[0]
+                imdb_id = best.get("imdbID", "")
+                if imdb_id:
+                    r3 = requests.get("https://www.omdbapi.com/",
+                        params={"apikey": OMDB_API_KEY, "i": imdb_id, "plot": "short"},
+                        timeout=8)
+                    d3 = r3.json()
+                    if d3.get("Response") == "True":
+                        return _parse_result(d3)
     except Exception: pass
     return {}
 
 
-    if not OMDB_API_KEY: return []
-    try:
-        params = {"apikey": OMDB_API_KEY, "s": query, "type": "movie"}
-        if year: params["y"] = year
-        r = requests.get("https://www.omdbapi.com/", params=params, timeout=8)
-        d = r.json()
-        if d.get("Response") == "True": return d.get("Search", [])
-    except Exception: pass
-    return []
-
-
 def omdb_search(query, year=""):
     """Search OMDb by title — used by the Add Movie search tab."""
-    if not OMDB_API_KEY: return []
-    try:
-        params = {"apikey": OMDB_API_KEY, "s": query, "type": "movie"}
-        if year: params["y"] = year
-        r = requests.get("https://www.omdbapi.com/", params=params, timeout=8)
-        d = r.json()
-        if d.get("Response") == "True": return d.get("Search", [])
-    except Exception: pass
-    return []
+
+
 
 def omdb_details(imdb_id):
     if not OMDB_API_KEY: return {}
