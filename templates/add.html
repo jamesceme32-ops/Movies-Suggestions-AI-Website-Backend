@@ -95,8 +95,19 @@
 <div class="add-page">
   <h2 class="add-title">Add Movies <em>(JZ Only)</em></h2>
   <div id="session-status" style="font-size:.78rem;color:var(--dim-white);margin-bottom:8px;">
-    Checking session... <a href="/admin/debug-add" target="_blank" style="color:var(--cyan);font-size:.72rem;">[debug]</a>
+    Checking session...
   </div>
+  <div id="debug-panel" style="background:rgba(0,0,0,0.8);border:1px solid #40c8f0;border-radius:8px;padding:12px;margin-bottom:16px;font-family:monospace;font-size:.75rem;display:none;">
+    <div style="color:#40c8f0;font-weight:bold;margin-bottom:8px;">🔍 DEBUG LOG</div>
+    <div id="debug-log" style="white-space:pre-wrap;color:#e8eef8;max-height:200px;overflow-y:auto;"></div>
+    <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
+      <button onclick="runDebugSearch()" class="btn btn-secondary btn-sm">Test OMDb Search</button>
+      <button onclick="runDebugMovies()" class="btn btn-secondary btn-sm">Test Movie DB</button>
+      <button onclick="runDebugAuth()" class="btn btn-secondary btn-sm">Test Auth</button>
+      <button onclick="document.getElementById('debug-panel').style.display='none'" class="btn btn-secondary btn-sm">Hide</button>
+    </div>
+  </div>
+  <button onclick="document.getElementById('debug-panel').style.display='block'" class="btn btn-secondary btn-sm" style="margin-bottom:12px;font-size:.72rem;">🔍 Show Debug</button>
   <div id="flash-msg"></div>
 
   <div class="tab-bar">
@@ -282,26 +293,51 @@
 {% block scripts %}
 <script>
 
+  function dbgLog(msg) {
+    var el = document.getElementById('debug-log');
+    if (el) el.textContent += new Date().toLocaleTimeString() + ' ' + msg + '\n';
+    console.log('[ADD DEBUG]', msg);
+  }
+
+  window.runDebugSearch = async function() {
+    dbgLog('Testing OMDb search (no auth)...');
+    try {
+      var r = await fetch('/debug-search?q=Godfather');
+      var d = await r.json();
+      dbgLog('OMDb result: ' + JSON.stringify(d, null, 2));
+    } catch(e) { dbgLog('ERROR: ' + e.message); }
+  };
+
+  window.runDebugMovies = async function() {
+    dbgLog('Testing movie DB (no auth)...');
+    try {
+      var r = await fetch('/debug-all-movies');
+      var d = await r.json();
+      dbgLog('DB result: ' + JSON.stringify(d, null, 2));
+    } catch(e) { dbgLog('ERROR: ' + e.message); }
+  };
+
+  window.runDebugAuth = async function() {
+    dbgLog('Testing auth endpoint...');
+    try {
+      var r = await fetch('/api/all_movies', { credentials: 'same-origin' });
+      dbgLog('Status: ' + r.status + ' ' + r.statusText + ' redirected:' + r.redirected + ' url:' + r.url);
+      var text = await r.text();
+      dbgLog('Response (first 200 chars): ' + text.substring(0, 200));
+    } catch(e) { dbgLog('ERROR: ' + e.message); }
+  };
+
   // Check admin session on load
-  fetch('/admin/debug-add', { credentials: 'same-origin' }).then(r => {
-    if (r.ok) {
-      r.json().then(d => {
-        var el = document.getElementById('session-status');
-        if (d.admin_session) {
-          el.innerHTML = '🟢 Logged in · OMDb key: ' + (d.omdb_key_set ? '✓ set (' + d.omdb_key_chars + ' chars)' : '✗ missing') +
-            ' <a href="/admin/debug-add" target="_blank" style="color:var(--cyan);font-size:.72rem;">[debug]</a>';
-          el.style.color = 'rgba(64,200,240,0.7)';
-        } else {
-          el.innerHTML = '🔴 Not logged in — <a href="/admin/login?next=/add" style="color:var(--gold);">Login here</a>';
-          el.style.color = '#fca5a5';
-        }
-      });
-    } else {
-      document.getElementById('session-status').innerHTML =
-        '🔴 Session expired — <a href="/admin/login?next=/add" style="color:var(--gold);">Login again</a>';
-    }
-  }).catch(() => {
-    document.getElementById('session-status').textContent = '⚠️ Could not check session';
+  fetch('/debug-all-movies').then(r => r.json()).then(d => {
+    var el = document.getElementById('session-status');
+    var adminOk = d.admin_in_session;
+    el.innerHTML = (adminOk ? '🟢 Logged in' : '🔴 Not logged in — <a href="/admin/login?next=/add" style="color:var(--gold);">Login</a>') +
+      ' · Movies in DB: <strong style="color:var(--gold);">' + d.movie_count + '</strong>' +
+      ' · <button onclick="document.getElementById('debug-panel').style.display='block'" style="background:none;border:none;color:var(--cyan);cursor:pointer;font-size:.72rem;">Show Debug</button>';
+    el.style.color = adminOk ? 'rgba(64,200,240,0.7)' : '#fca5a5';
+    dbgLog('Page loaded. admin=' + adminOk + ' movies=' + d.movie_count);
+  }).catch(e => {
+    document.getElementById('session-status').textContent = '⚠️ Could not check session: ' + e.message;
   });
 
   // ── Tabs ──────────────────────────────────────────────────────────────────
@@ -338,14 +374,17 @@
     document.getElementById('detailsPanel').style.display = 'none';
     selectedMovie = null;
     try {
+      dbgLog('Searching OMDb for: ' + q);
       var res = await fetch(`/api/search_movie?q=${encodeURIComponent(q)}${y?'&year='+y:''}`, { credentials: 'same-origin' });
-      // Just try to parse JSON — if auth fails, server returns HTML and json() throws
+      dbgLog('Search response: status=' + res.status + ' redirected=' + res.redirected + ' url=' + res.url);
       var text = await res.text();
+      dbgLog('Response len=' + text.length + ' first150=' + text.substring(0,150));
       var data;
       try {
         data = JSON.parse(text);
+        dbgLog('JSON parsed: results=' + (data.results ? data.results.length : 'none') + ' error=' + (data.error||'none'));
       } catch(e) {
-        // Got HTML back (likely login redirect)
+        dbgLog('JSON parse FAILED - got HTML (auth redirect?)');
         document.getElementById('searching').style.display = 'none';
         document.getElementById('no-results').textContent = 'Session expired — please log in again.';
         document.getElementById('no-results').style.display = 'block';
@@ -533,19 +572,24 @@
     if (editLoaded) return;
     editLoaded = true;
     try {
+      dbgLog('Fetching /api/all_movies...');
       var res  = await fetch('/api/all_movies', { credentials: 'same-origin' });
+      dbgLog('all_movies status: ' + res.status + ' redirected: ' + res.redirected + ' url: ' + res.url);
       var text = await res.text();
+      dbgLog('all_movies response len: ' + text.length + ' first 150: ' + text.substring(0,150));
       try {
         var data = JSON.parse(text);
         editAllMovies = data.movies || [];
+        dbgLog('all_movies parsed OK: ' + editAllMovies.length + ' movies');
       } catch(e) {
-        // Auth redirect — got HTML
+        dbgLog('all_movies JSON parse failed - got HTML');
         editLoaded = false;
         editAllMovies = [];
         document.getElementById('editResults').innerHTML =
           '<div style="color:#fca5a5;padding:8px;">Session expired. <a href="/admin/login?next=/add" style="color:var(--gold);">Log in again</a></div>';
       }
     } catch(e) {
+      dbgLog('all_movies fetch error: ' + e.message);
       editLoaded = false;
       editAllMovies = [];
     }
