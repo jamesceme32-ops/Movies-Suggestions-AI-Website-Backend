@@ -1078,6 +1078,55 @@ def admin_debug():
 
 
 
+
+@app.route("/admin/omdb-diag")
+@admin_required
+def admin_omdb_diag():
+    """
+    Shows exactly which movies are still missing IMDb data,
+    tests the API live, and shows raw OMDb responses for the first 5 missing.
+    """
+    db     = r2_storage.load_movies_db()
+    movies = db.get("movies", [])
+
+    missing = [m for m in movies if _needs_refresh(m)]
+
+    # Test API with a known movie
+    test_result = None
+    if OMDB_API_KEY:
+        try:
+            r = requests.get("https://www.omdbapi.com/",
+                params={"apikey": OMDB_API_KEY, "t": "The Godfather", "y": "1972", "type": "movie"},
+                timeout=8)
+            test_result = r.json()
+        except Exception as e:
+            test_result = {"exception": str(e)}
+
+    # Try first 5 missing movies and show raw responses
+    samples = []
+    for m in missing[:5]:
+        title = m.get("title", "")
+        year  = m.get("year")
+        raw   = None
+        if OMDB_API_KEY:
+            try:
+                r = requests.get("https://www.omdbapi.com/",
+                    params={"apikey": OMDB_API_KEY, "t": title,
+                            "y": str(year) if year else "", "type": "movie"},
+                    timeout=8)
+                raw = r.json()
+            except Exception as e:
+                raw = {"exception": str(e)}
+        samples.append({"title": title, "year": year, "omdb_response": raw})
+
+    return jsonify({
+        "omdb_key_set":       bool(OMDB_API_KEY),
+        "omdb_key_preview":   OMDB_API_KEY[:6] + "..." if OMDB_API_KEY else "",
+        "total_missing":      len(missing),
+        "api_test_godfather": test_result,
+        "first_5_missing":    samples,
+    })
+
 @app.route("/admin/test-omdb")
 @admin_required
 def admin_test_omdb():
