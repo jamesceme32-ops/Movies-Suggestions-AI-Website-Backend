@@ -380,22 +380,11 @@
     selectedMovie = null;
     try {
       dbgLog('Searching OMDb for: ' + q);
-      var res = await fetch(`/api/search_movie?q=${encodeURIComponent(q)}${y?'&year='+y:''}`, { credentials: 'same-origin' });
-      dbgLog('Search response: status=' + res.status + ' redirected=' + res.redirected + ' url=' + res.url);
-      var text = await res.text();
-      dbgLog('Response len=' + text.length + ' first150=' + text.substring(0,150));
-      var data;
-      try {
-        data = JSON.parse(text);
-        dbgLog('JSON parsed: results=' + (data.results ? data.results.length : 'none') + ' error=' + (data.error||'none'));
-      } catch(e) {
-        dbgLog('JSON parse FAILED - got HTML (auth redirect?)');
-        document.getElementById('searching').style.display = 'none';
-        document.getElementById('no-results').textContent = 'Session expired — please log in again.';
-        document.getElementById('no-results').style.display = 'block';
-        setTimeout(() => window.location.href = '/admin/login?next=/add', 1500);
-        return;
-      }
+      var res = await fetch('/api/search_movie?q=' + encodeURIComponent(q) + (y ? '&year=' + y : ''), { credentials: 'same-origin' });
+      dbgLog('Search status: ' + res.status);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      var data = await res.json();
+      dbgLog('Results: ' + (data.results ? data.results.length : 'null') + ' error: ' + (data.error||'none'));
       document.getElementById('searching').style.display = 'none';
       if (data.error) {
         document.getElementById('no-results').textContent = '⚠️ ' + data.error;
@@ -578,25 +567,19 @@
     editLoaded = true;
     try {
       dbgLog('Fetching /api/all_movies...');
-      var res  = await fetch('/api/all_movies', { credentials: 'same-origin' });
-      dbgLog('all_movies status: ' + res.status + ' redirected: ' + res.redirected + ' url: ' + res.url);
-      var text = await res.text();
-      dbgLog('all_movies response len: ' + text.length + ' first 150: ' + text.substring(0,150));
-      try {
-        var data = JSON.parse(text);
-        editAllMovies = data.movies || [];
-        dbgLog('all_movies parsed OK: ' + editAllMovies.length + ' movies');
-      } catch(e) {
-        dbgLog('all_movies JSON parse failed - got HTML');
-        editLoaded = false;
-        editAllMovies = [];
-        document.getElementById('editResults').innerHTML =
-          '<div style="color:#fca5a5;padding:8px;">Session expired. <a href="/admin/login?next=/add" style="color:var(--gold);">Log in again</a></div>';
-      }
+      var res = await fetch('/api/all_movies', { credentials: 'same-origin' });
+      dbgLog('all_movies status: ' + res.status);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      var data = await res.json();
+      editAllMovies = data.movies || [];
+      dbgLog('all_movies loaded: ' + editAllMovies.length + ' movies');
     } catch(e) {
-      dbgLog('all_movies fetch error: ' + e.message);
+      dbgLog('all_movies failed: ' + e.message + ' - may need to re-login');
       editLoaded = false;
       editAllMovies = [];
+      document.getElementById('editResults').innerHTML =
+        '<div style="color:#fca5a5;padding:8px;">Failed to load movies: ' + e.message + 
+        '. <a href="/admin/login?next=/add" style="color:var(--gold);">Re-login</a></div>';
     }
   }
 
