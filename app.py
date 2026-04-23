@@ -280,6 +280,26 @@ def omdb_by_title(title: str, year=None) -> dict:
     """
     if not OMDB_API_KEY: return {}
 
+    # Indicators that a search result is NOT the actual movie
+    _JUNK_INDICATORS = [
+        "the making of", "making of", " w/", "w/ ", " - episode",
+        "episode ", "buff specialist", "movie buff", " ep ", "(ep ",
+        "/waves", "/a single man",
+    ]
+
+    def _is_junk_title(result_title, search_title):
+        """Return True if result looks like a podcast/documentary about the movie."""
+        rt = result_title.lower()
+        st = search_title.lower()
+        # If result title contains junk indicators
+        if any(ind in rt for ind in _JUNK_INDICATORS):
+            return True
+        # If result title has a slash followed by another movie name (podcast ep)
+        import re as _re
+        if _re.search(r'[(]\d{4}[)]\s*/\s*\w', result_title):
+            return True
+        return False
+
     def _parse_result(d):
         actors   = d.get("Actors", "")
         top6     = ", ".join(a.strip() for a in actors.split(",")[:6])
@@ -313,9 +333,12 @@ def omdb_by_title(title: str, year=None) -> dict:
         d2 = r2.json()
         if d2.get("Response") == "True":
             results = d2.get("Search", [])
-            movie_results = [x for x in results if x.get("Type","") == "movie"]
+            movie_results = [x for x in results
+                             if x.get("Type","") == "movie"
+                             and not _is_junk_title(x.get("Title",""), title)]
             if not movie_results:
-                movie_results = results
+                movie_results = [x for x in results
+                                 if not _is_junk_title(x.get("Title",""), title)]
 
             best = None
             if year and movie_results:
@@ -727,9 +750,21 @@ def suggest():
     cnt_genre = profile.get("cnt_genre", {})
     bay_genre = profile.get("genre", {})  # normalized Bayesian scores, lowercase keys
     # Sort by Bayesian score so single-movie genres don't dominate
+    _GENRE_DISPLAY = {
+        "sci-fi": "Sci-Fi", "scifi": "Sci-Fi", "science fiction": "Sci-Fi",
+        "comedy-drama": "Comedy-Drama", "romantic comedy": "Romantic Comedy",
+        "dark comedy": "Dark Comedy", "buddy": "Buddy", "noir": "Noir",
+        "historical drama": "Historical Drama", "historical film": "Historical Film",
+        "spaghetti western": "Spaghetti Western", "indie film": "Indie Film",
+        "legal drama": "Legal Drama", "martial arts": "Martial Arts",
+        "samurai cinema": "Samurai Cinema", "psychological thriller": "Psychological Thriller",
+    }
+    def _fmt_genre(g):
+        return _GENRE_DISPLAY.get(g.lower(), g.title())
+
     top_genres_list = sorted(bay_genre.items(), key=lambda x: -x[1])[:3]
     top_genres = ", ".join(
-        f"{k.title()} ({cnt_genre.get(k, 0)})" for k, _ in top_genres_list
+        f"{_fmt_genre(k)} ({cnt_genre.get(k, 0)})" for k, _ in top_genres_list
     )
     profile_summary = {
         "rated":       profile.get("rated_count", 0),
@@ -1372,6 +1407,81 @@ def admin_debug():
 
 
 
+
+
+# Known IMDb IDs for movies that fuzzy search struggles with
+_KNOWN_IMDB_IDS = {
+    "mad max 2: the road warrior||1981": "tt0082694",
+    "mad max 2||1981":                   "tt0082694",
+    "grave of the fireflies||1988":      "tt0095327",
+    "heathers||1988":                    "tt0097493",
+    "schindler's list||1993":            "tt0108052",
+    "memento||2000":                     "tt0209144",
+    "the royal tenenbaums||2001":        "tt0265666",
+    "tucker & dale vs. evil||2010":      "tt1465522",
+    "tucker & dale vs evil||2010":       "tt1465522",
+    "the cabin in the woods||2011":      "tt1259521",
+    "pig||2021":                         "tt11003218",
+    "pig||2017":                         "tt11003218",  # year typo in DB
+}
+
+
+@app.route("/admin/force-fix-missing", methods=["POST"])
+@admin_required
+def admin_force_fix():
+    """Directly fetch data by known IMDb ID for stubborn missing movies."""
+    db     = r2_storage.load_movies_db()
+    movies = db.get("movies", [])
+    cache  = _load_cache()
+    fixed  = []
+    skipped = []
+
+    for m in movies:
+        if not _needs_refresh(m):
+            continue
+        title = m.get("title", "")
+        year  = m.get("year")
+        key   = f"{title.lower()}||{year or ''}"
+        imdb_id = _KNOWN_IMDB_IDS.get(key)
+
+        if not imdb_id:
+            skipped.append(title)
+            continue
+
+        # Fetch by IMDb ID directly
+        try:
+            r = requests.get("https://www.omdbapi.com/",
+                params={"apikey": OMDB_API_KEY, "i": imdb_id, "plot": "short"},
+                timeout=8)
+            d = r.json()
+            if d.get("Response") == "True":
+                actors = d.get("Actors", "")
+                top6   = ", ".join(a.strip() for a in actors.split(",")[:6])
+                lang_raw = d.get("Language", "")
+                language = lang_raw.split(",")[0].strip() if lang_raw else ""
+                m["imdb_rating"] = _safe_float(d.get("imdbRating"))
+                m["actors"]      = top6
+                m["director"]    = d.get("Director", "")
+                m["plot"]        = d.get("Plot", "")
+                m["language"]    = language
+                m["imdb_url"]    = f"https://www.imdb.com/title/{imdb_id}/"
+                if not m.get("genre"):
+                    m["genre"] = d.get("Genre","").replace(", ","/")
+                if not m.get("duration"):
+                    m["duration"] = d.get("Runtime","")
+                cache[imdb_id] = {"IMDB Rating": m["imdb_rating"],
+                                  "Actors": top6, "Director": m["director"],
+                                  "Plot": m["plot"], "Language": language}
+                fixed.append(f"{title} → {d.get('Title')} ({d.get('Year')})")
+        except Exception as e:
+            skipped.append(f"{title}: {e}")
+
+    db["movies"] = movies
+    r2_storage.save_movies_db(db)
+    r2_storage.save_cache(cache)
+    invalidate_db()
+    return jsonify({"fixed": fixed, "skipped": skipped,
+                    "total_fixed": len(fixed), "total_skipped": len(skipped)})
 
 @app.route("/admin/missing-movies")
 @admin_required
