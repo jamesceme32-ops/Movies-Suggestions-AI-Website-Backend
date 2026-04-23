@@ -185,6 +185,7 @@
     <div class="panel">
       <div class="panel-title">EDIT MOVIES</div>
       <p style="font-size:.84rem;color:var(--dim-white);margin-bottom:16px;">Search for a movie, then click Edit to update its details.</p>
+      <p id="edit-movie-count" style="font-size:.78rem;color:var(--cyan);margin-bottom:12px;"></p>
 
       <div style="display:flex;gap:10px;margin-bottom:16px;">
         <input type="text" id="editSearch" placeholder="Search by title..." style="flex:1;" onkeydown="if(event.key==='Enter') doEditSearch()">
@@ -353,7 +354,7 @@
       btn.classList.add('active');
       document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
       if (btn.dataset.tab === 'top10' && !poolLoaded) loadPool();
-      if (btn.dataset.tab === 'edit') { /* edit loads on search */ }
+      if (btn.dataset.tab === 'edit') { if (window.loadEditMovies) window.loadEditMovies(); }
     });
   });
 
@@ -458,7 +459,8 @@
       if (data.success) {
         showFlash(`✅ "${selectedMovie.title}" added!`, true);
         document.getElementById('detailsPanel').style.display='none'; document.getElementById('searchResults').innerHTML=''; document.getElementById('searchInput').value=''; selectedMovie=null; selectedScore=null;
-        poolLoaded=false; editLoaded=false;
+        poolLoaded=false;
+        // Don't clear editLoaded — reload on next search if needed
       } else { showFlash(data.error||'Failed.', false); }
     } catch(e) { showFlash('Something went wrong.', false); }
     document.getElementById('saveTxt').style.display='inline'; document.getElementById('saveLoad').style.display='none'; document.getElementById('saveBtn').disabled=false;
@@ -562,36 +564,51 @@
   var editAllMovies = [];  // separate from poolMovies to avoid conflicts
   var editCurrentOrig = null;  // the original movie being edited
 
-  async function ensureEditLoaded() {
-    if (editLoaded) return;
-    editLoaded = true;
+  window.loadEditMovies = async function() {
+    var countEl = document.getElementById('edit-movie-count');
+    if (countEl) { countEl.textContent = 'Loading...'; countEl.style.color = 'var(--dim-white)'; }
+    dbgLog('Fetching /api/all_movies...');
     try {
-      dbgLog('Fetching /api/all_movies...');
-      var res = await fetch('/api/all_movies', { credentials: 'same-origin' });
-      dbgLog('all_movies status: ' + res.status);
+      var res  = await fetch('/api/all_movies', { credentials: 'same-origin' });
+      dbgLog('Status: ' + res.status);
       if (!res.ok) throw new Error('HTTP ' + res.status);
       var data = await res.json();
-      editAllMovies = data.movies || [];
-      dbgLog('all_movies loaded: ' + editAllMovies.length + ' movies');
+      editAllMovies = (data && data.movies) ? data.movies : [];
+      editLoaded    = true;
+      dbgLog('Loaded: ' + editAllMovies.length + ' movies');
+      if (countEl) { countEl.textContent = editAllMovies.length + ' movies ready — type to search'; countEl.style.color = 'var(--cyan)'; }
     } catch(e) {
-      dbgLog('all_movies failed: ' + e.message + ' - may need to re-login');
-      editLoaded = false;
-      editAllMovies = [];
-      document.getElementById('editResults').innerHTML =
-        '<div style="color:#fca5a5;padding:8px;">Failed to load movies: ' + e.message + 
-        '. <a href="/admin/login?next=/add" style="color:var(--gold);">Re-login</a></div>';
+      editLoaded = false; editAllMovies = [];
+      dbgLog('Load failed: ' + e.message);
+      if (countEl) { countEl.textContent = 'Load failed: ' + e.message; countEl.style.color = '#fca5a5'; }
     }
+  };
+
+  async function ensureEditLoaded() {
+    if (editLoaded && editAllMovies.length > 0) return;
+    await window.loadEditMovies();
   }
 
-  async function doEditSearch() {
-    await ensureEditLoaded();
+  window.doEditSearch = async function() {
+    // Always reload if empty, await it before searching
+    if (!editAllMovies || editAllMovies.length === 0) {
+      await window.loadEditMovies();
+    }
     var q  = document.getElementById('editSearch').value.trim().toLowerCase();
     var el = document.getElementById('editResults');
     if (!q) { el.innerHTML = '<div style="color:var(--dim-white);font-size:.83rem;">Type a title and press Search.</div>'; return; }
 
-    var matches = editAllMovies.filter(m => m.title.toLowerCase().includes(q));
+    dbgLog('Search q="'+q+'" pool='+editAllMovies.length);
+    if (!editAllMovies || editAllMovies.length === 0) {
+      el.innerHTML = '<div style="color:#fca5a5;padding:8px;">Failed to load movies (' + editAllMovies.length + '). See debug log.</div>';
+      return;
+    }
+    var matches = editAllMovies.filter(function(m) {
+      return m && m.title && m.title.toLowerCase().indexOf(q) >= 0;
+    });
+    dbgLog('Matches: ' + matches.length);
     if (!matches.length) {
-      el.innerHTML = '<div style="color:var(--dim-white);font-size:.83rem;">No movies found.</div>';
+      el.innerHTML = '<div style="color:var(--dim-white);font-size:.83rem;">No matches for "'+q+'".</div>';
       document.getElementById('editForm').style.display = 'none';
       return;
     }
@@ -694,9 +711,9 @@
         document.getElementById('editForm').style.display = 'none';
         // Refresh search results
         doEditSearch();
-        // Force reload on next tab switch
-        editLoaded = false;
+        // Force reload of top10 pool only
         poolLoaded = false;
+        editLoaded = true;  // keep edit data, just reload from fresh data
       } else {
         showFlash(data.error || 'Save failed. Try again.', false);
       }
