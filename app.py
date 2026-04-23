@@ -1427,6 +1427,45 @@ _KNOWN_IMDB_IDS = {
 }
 
 
+@app.route("/admin/tmdb-missing")
+@admin_required
+def admin_tmdb_missing():
+    db     = r2_storage.load_movies_db()
+    movies = db.get("movies", [])
+    missing = [m for m in movies
+               if _extract_imdb_id(m.get("imdb_url", ""))
+               and (not m.get("cast") or not m.get("poster_url") or not m.get("language"))]
+    api_test = None
+    if TMDB_API_KEY:
+        try:
+            r = requests.get("https://api.themoviedb.org/3/find/tt0068646",
+                params={"api_key": TMDB_API_KEY, "external_source": "imdb_id"}, timeout=8)
+            d = r.json()
+            api_test = {"status": r.status_code, "results_count": len(d.get("movie_results", []))}
+        except Exception as e:
+            api_test = {"error": str(e)}
+    results = []
+    for m in missing[:15]:
+        imdb_id = _extract_imdb_id(m.get("imdb_url", ""))
+        tmdb_res = None
+        if TMDB_API_KEY and imdb_id:
+            try:
+                r = requests.get(f"https://api.themoviedb.org/3/find/{imdb_id}",
+                    params={"api_key": TMDB_API_KEY, "external_source": "imdb_id"}, timeout=8)
+                d = r.json(); mr = d.get("movie_results", [])
+                tmdb_res = {"status": r.status_code, "found": len(mr) > 0,
+                            "tmdb_title": mr[0].get("title","") if mr else "",
+                            "has_poster": bool(mr[0].get("poster_path","")) if mr else False}
+            except Exception as e:
+                tmdb_res = {"error": str(e)}
+        results.append({"title": m.get("title"), "year": m.get("year"),
+                        "imdb_id": imdb_id, "has_cast": bool(m.get("cast")),
+                        "has_poster": bool(m.get("poster_url")),
+                        "has_language": bool(m.get("language")), "tmdb": tmdb_res})
+    return jsonify({"total_missing": len(missing), "tmdb_key_set": bool(TMDB_API_KEY),
+                    "api_test": api_test, "sample": results})
+
+
 @app.route("/admin/force-fix-missing", methods=["POST"])
 @admin_required
 def admin_force_fix():
