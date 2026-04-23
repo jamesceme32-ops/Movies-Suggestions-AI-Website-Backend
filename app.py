@@ -186,7 +186,7 @@ def _first(lst): return lst[0] if lst else None
 
 def engineer_features(df):
     df = df.copy()
-    genre_str    = df["Genre"].fillna("").str.replace(", ", "/", regex=False)
+    genre_str    = df["Genre"].fillna("").str.replace(r",\s*", "/", regex=True)
     genres       = genre_str.str.split("/", n=1, expand=True)
     df["genre1"] = genres[0].str.strip().str.lower().fillna("")
     df["genre2"] = (genres[1].str.strip().str.lower() if 1 in genres.columns else genres[0].str.strip().str.lower())
@@ -314,7 +314,7 @@ def omdb_by_title(title: str, year=None) -> dict:
             "Language":    language,
             "imdb_id":     imdb_id,
             "imdb_url":    f"https://www.imdb.com/title/{imdb_id}/" if imdb_id else "",
-            "genre":       d.get("Genre", "").replace(", ", "/"),
+            "genre":       d.get("Genre", "").replace(", ", "/").replace(",", "/"),
             "duration":    d.get("Runtime", ""),
         }
 
@@ -1086,7 +1086,7 @@ def api_movie_details():
     title  = data.get("Title",""); year = data.get("Year","")
     return jsonify({
         "title": title, "year": year,
-        "genre": data.get("Genre","").replace(", ","/"),
+        "genre": data.get("Genre","").replace(", ","/").replace(",","/"),
         "duration": data.get("Runtime",""),
         "imdb_id": data.get("imdbID",""),
         "imdb_rating": data.get("imdbRating",""),
@@ -1117,7 +1117,7 @@ def api_save_movie():
         if m:
             mins = int(m.group(1)); h, mn = divmod(mins, 60)
             dur_fmt = f"{h}h {mn}m" if h > 0 else f"{mn}m"
-        genre = data.get("genre","").replace(", ","/")
+        genre = data.get("genre","").replace(", ","/").replace(",","/")
         movies.append({
             "title": data.get("title",""), "year": int(year_val) if year_val else None,
             "genre": genre, "duration": dur_fmt,
@@ -1154,7 +1154,7 @@ def api_edit_movie():
             if title_match and year_match:
                 if "my_score"  in data: m["my_score"]  = data["my_score"]
                 if "watched"   in data: m["watched"]   = bool(data["watched"])
-                if "genre"     in data: m["genre"]     = data["genre"].replace(", ","/")
+                if "genre"     in data: m["genre"]     = data["genre"].replace(", ","/").replace(",","/")
                 if "duration"  in data: m["duration"]  = data["duration"]
                 if "title"     in data and data["title"].strip(): m["title"] = data["title"].strip()
                 if "year"      in data and data["year"]: m["year"] = int(data["year"]) if str(data["year"]).isdigit() else m["year"]
@@ -1581,7 +1581,7 @@ def admin_force_fix():
                 m["language"]    = language
                 m["imdb_url"]    = f"https://www.imdb.com/title/{imdb_id}/"
                 if not m.get("genre"):
-                    m["genre"] = d.get("Genre","").replace(", ","/")
+                    m["genre"] = d.get("Genre","").replace(", ","/").replace(",","/")
                 if not m.get("duration"):
                     m["duration"] = d.get("Runtime","")
                 cache[imdb_id] = {"IMDB Rating": m["imdb_rating"],
