@@ -613,14 +613,15 @@
       return;
     }
 
-    el.innerHTML = matches.slice(0, 20).map(m => `
+    // Store matches in a lookup so onclick just passes an index (safe for any title)
+    window._editMatches = matches.slice(0, 20);
+    el.innerHTML = window._editMatches.map((m, i) => `
       <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid var(--panel-border);">
         <div>
           <span style="font-size:.88rem;font-weight:500;">${m.title}</span>
           <span style="font-size:.75rem;color:var(--dim-white);margin-left:8px;">${m.year||'?'} ${m.my_score != null ? '· '+m.my_score+'/10' : ''} ${m.watched ? '· Watched' : ''}</span>
         </div>
-        <button class="btn btn-secondary btn-sm"
-          onclick="openEditForm(${JSON.stringify(m).replace(/'/g, '&#39;')})">
+        <button class="btn btn-secondary btn-sm" onclick="openEditForm(window._editMatches[${i}])">
           ✏️ Edit
         </button>
       </div>`).join('');
