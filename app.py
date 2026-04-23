@@ -187,10 +187,11 @@ def _first(lst): return lst[0] if lst else None
 def engineer_features(df):
     df = df.copy()
     genre_str    = df["Genre"].fillna("").str.replace(r",\s*", "/", regex=True)
-    genres       = genre_str.str.split("/", n=1, expand=True)
-    df["genre1"] = genres[0].str.strip().str.lower().fillna("")
-    df["genre2"] = (genres[1].str.strip().str.lower() if 1 in genres.columns else genres[0].str.strip().str.lower())
-    df["genre2"] = df["genre2"].fillna(df["genre1"])
+    # Split into all individual genres, take first and second separately
+    all_genres   = genre_str.str.split("/")
+    df["genre1"] = all_genres.apply(lambda x: x[0].strip().lower() if isinstance(x, list) and len(x) > 0 else "")
+    df["genre2"] = all_genres.apply(lambda x: x[1].strip().lower() if isinstance(x, list) and len(x) > 1 else "")
+    df["genre2"] = df["genre2"].where(df["genre2"] != "", df["genre1"])
     dur = df["Movie Duration"].fillna("")
     h  = dur.str.extract(r"(\d+)\s*h",      expand=False).fillna(0).astype(int)
     m  = dur.str.extract(r"(\d+)\s*m",      expand=False).fillna(0).astype(int)
@@ -203,12 +204,19 @@ def engineer_features(df):
     return df
 
 def extract_genres(df):
+    """Extract all individual genres from genre1 and genre2 columns."""
     genres = set()
     for col in ["genre1", "genre2"]:
         if col in df.columns:
             for g in df[col].dropna().unique():
                 g = str(g).strip()
-                if g and g != "nan": genres.add(g.title())
+                if not g or g == "nan":
+                    continue
+                # Split by "/" in case any combined genres slipped through
+                for part in g.split("/"):
+                    part = part.strip()
+                    if part and part != "nan":
+                        genres.add(part.title())
     return sorted(genres)
 
 def fmt_genre(genre_str):
@@ -655,7 +663,13 @@ def score_and_filter(df, profile, predicted, style,
     elif watched_filter == "Watched only":  res = res[res["Watched"]]
     if genre_override:
         g = [x.lower().strip() for x in genre_override]
-        res = res[res.apply(lambda r: any(gx in r["genre1"] or gx in r["genre2"] for gx in g), axis=1)]
+        def _genre_match(row):
+            # Split stored genres by "/" to catch any that weren't split properly
+            g1_parts = [p.strip() for p in str(row.get("genre1","")).split("/")]
+            g2_parts = [p.strip() for p in str(row.get("genre2","")).split("/")]
+            all_parts = g1_parts + g2_parts
+            return any(gx in all_parts for gx in g)
+        res = res[res.apply(_genre_match, axis=1)]
     if era_override:   res = res[res["Year Range"].isin(era_override)]
     if dur_override:   res = res[res["Duration Range"].isin(dur_override)]
     if person_filter and person_filter.strip():
