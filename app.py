@@ -313,24 +313,20 @@ def omdb_by_title(title: str, year=None) -> dict:
         d2 = r2.json()
         if d2.get("Response") == "True":
             results = d2.get("Search", [])
-            # Only keep entries that are actually movies (Type=movie) and year within 1 year
             movie_results = [x for x in results if x.get("Type","") == "movie"]
             if not movie_results:
-                movie_results = results  # fallback if type not set
+                movie_results = results
 
             best = None
             if year and movie_results:
-                # Prefer exact year match
                 exact = [x for x in movie_results
                          if str(x.get("Year",""))[:4] == str(year)]
-                # Then within 1 year
                 close = [x for x in movie_results
-                         if abs(int((x.get("Year","0") or "0")[:4]) - int(year)) <= 1]
+                         if abs(int((x.get("Year","0") or "0")[:4]) - int(year)) <= 2]
                 if exact:
                     best = exact[0]
                 elif close:
                     best = min(close, key=lambda x: abs(int((x.get("Year","0") or "0")[:4]) - int(year)))
-                # Don't pick a result if year is off by more than 1
             elif movie_results:
                 best = movie_results[0]
 
@@ -343,6 +339,27 @@ def omdb_by_title(title: str, year=None) -> dict:
                     d3 = r3.json()
                     if d3.get("Response") == "True":
                         return _parse_result(d3)
+
+        # Step 3: try without year constraint (for cases where year in DB is slightly off)
+        if year:
+            params3 = {"apikey": OMDB_API_KEY, "s": title, "type": "movie"}
+            r4 = requests.get("https://www.omdbapi.com/", params=params3, timeout=8)
+            d4 = r4.json()
+            if d4.get("Response") == "True":
+                results4 = [x for x in d4.get("Search", []) if x.get("Type","") == "movie"]
+                if results4:
+                    # Accept any result within 3 years
+                    close4 = [x for x in results4
+                               if abs(int((x.get("Year","0") or "0")[:4]) - int(year)) <= 3]
+                    if close4:
+                        imdb_id = close4[0].get("imdbID","")
+                        if imdb_id:
+                            r5 = requests.get("https://www.omdbapi.com/",
+                                params={"apikey": OMDB_API_KEY, "i": imdb_id, "plot": "short"},
+                                timeout=8)
+                            d5 = r5.json()
+                            if d5.get("Response") == "True":
+                                return _parse_result(d5)
     except Exception: pass
     return {}
 
@@ -1093,6 +1110,30 @@ def api_edit_movie():
         return jsonify({"success": True})
     except Exception as e: return jsonify({"success": False, "error": str(e)})
 
+
+
+@app.route("/api/delete_movie", methods=["POST"])
+@admin_required
+def api_delete_movie():
+    try:
+        data  = request.get_json()
+        sid   = get_sid()
+        db    = get_db()
+        movies = db.get("movies", [])[:]
+        orig_title = data.get("title", "").lower().strip()
+        orig_year  = str(data.get("year") or "")
+        before = len(movies)
+        movies = [m for m in movies
+                  if not (m.get("title","").lower().strip() == orig_title
+                          and str(m.get("year") or "") == orig_year)]
+        if len(movies) == before:
+            return jsonify({"success": False, "error": "Movie not found"})
+        db2 = dict(db); db2["movies"] = movies
+        r2_storage.save_movies_db(db2)
+        invalidate_store(sid)
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
 
 @app.route("/api/rated_movies")
 @admin_required
