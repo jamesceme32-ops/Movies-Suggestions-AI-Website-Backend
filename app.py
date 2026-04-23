@@ -1115,22 +1115,47 @@ def api_rated_movies():
 @app.route("/api/all_movies")
 @admin_required
 def api_all_movies():
+    import math
     sid = get_sid()
     if sid not in STORE: load_store_from_db(sid)
     df = get_df(sid)
     if df is None: return jsonify({"movies": []})
+
+    def clean(v):
+        """Return None for any NaN/inf/None value, otherwise the value."""
+        if v is None: return None
+        try:
+            f = float(v)
+            if math.isnan(f) or math.isinf(f): return None
+            return f
+        except (TypeError, ValueError):
+            pass
+        return v
+
     movies = []
     for _, r in df.sort_values("Title").iterrows():
-        yr = r.get("Release Year")
-        yr_int = int(yr) if pd.notna(yr) and yr else None
+        yr   = r.get("Release Year")
+        yr_v = int(float(yr)) if yr is not None and clean(yr) is not None else None
         movies.append({
-            "title":    r.get("Title",""), "year": yr_int,
-            "genre":    r.get("Genre",""), "duration": r.get("Movie Duration",""),
-            "watched":  bool(r.get("Watched",False)),
-            "my_score": r.get("My Score") if pd.notna(r.get("My Score",None)) else None,
-            "imdb":     r.get("IMDB Rating",""),
+            "title":    str(r.get("Title") or ""),
+            "year":     yr_v,
+            "genre":    str(r.get("Genre") or ""),
+            "duration": str(r.get("Movie Duration") or ""),
+            "watched":  bool(r.get("Watched") or False),
+            "my_score": clean(r.get("My Score")),
+            "imdb":     clean(r.get("IMDB Rating")),
         })
-    return jsonify({"movies": movies})
+
+    # Use json.dumps with allow_nan=False to catch any remaining NaN
+    import json as _json
+    from flask import Response
+    try:
+        body = _json.dumps({"movies": movies}, allow_nan=False)
+    except ValueError:
+        # Fallback: replace any NaN that slipped through
+        body = _json.dumps({"movies": movies}, allow_nan=True)
+        body = body.replace(': NaN', ': null').replace(':NaN', ':null')
+    return Response(body, mimetype='application/json')
 
 
 @app.route("/api/top10", methods=["GET"])
