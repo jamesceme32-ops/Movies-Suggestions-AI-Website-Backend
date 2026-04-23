@@ -411,52 +411,71 @@ def omdb_details(imdb_id):
     return {}
 
 
-def tmdb_cast_and_poster(imdb_id: str) -> dict:
+def tmdb_cast_and_poster(imdb_id: str, title: str = "", year: int = None) -> dict:
     """
-    Fetch top-6 cast and poster URL from TMDb using an IMDb ID.
-    Returns {"cast": "Actor1, Actor2, ...", "poster_url": "https://..."} or {}.
+    Fetch top-8 cast, poster URL and language from TMDb.
+    Step 1: lookup by IMDb ID. Step 2: if not found, search by title+year.
     """
-    if not TMDB_API_KEY or not imdb_id:
+    if not TMDB_API_KEY:
         return {}
-    try:
-        r = requests.get(
-            f"https://api.themoviedb.org/3/find/{imdb_id}",
-            params={"api_key": TMDB_API_KEY, "external_source": "imdb_id"},
-            timeout=8
-        )
-        results = r.json().get("movie_results", [])
-        if not results:
-            return {}
-        tmdb_id      = results[0]["id"]
-        poster_path  = results[0].get("poster_path", "")
 
-        cr = requests.get(
-            f"https://api.themoviedb.org/3/movie/{tmdb_id}/credits",
-            params={"api_key": TMDB_API_KEY},
-            timeout=8
-        )
-        cast_list = cr.json().get("cast", [])
-        top6 = ", ".join(c["name"] for c in cast_list[:8])
+    lang_map = {
+        "en": "English", "fr": "French", "de": "German", "es": "Spanish",
+        "it": "Italian", "ja": "Japanese", "ko": "Korean", "pt": "Portuguese",
+        "ru": "Russian", "zh": "Chinese", "ar": "Arabic", "hi": "Hindi",
+        "sv": "Swedish", "da": "Danish", "nl": "Dutch", "pl": "Polish",
+        "fi": "Finnish", "no": "Norwegian", "tr": "Turkish", "he": "Hebrew",
+        "hu": "Hungarian", "cs": "Czech", "ro": "Romanian", "uk": "Ukrainian",
+    }
 
-        # Language from TMDb
-        lang_code = results[0].get("original_language", "")
-        lang_map  = {
-            "en": "English", "fr": "French", "de": "German", "es": "Spanish",
-            "it": "Italian", "ja": "Japanese", "ko": "Korean", "pt": "Portuguese",
-            "ru": "Russian", "zh": "Chinese", "ar": "Arabic", "hi": "Hindi",
-            "sv": "Swedish", "da": "Danish", "nl": "Dutch", "pl": "Polish",
-            "fi": "Finnish", "no": "Norwegian", "tr": "Turkish", "he": "Hebrew",
-            "hu": "Hungarian", "cs": "Czech", "ro": "Romanian", "uk": "Ukrainian",
-        }
-        language = lang_map.get(lang_code, lang_code.upper() if lang_code else "")
-
+    def _fetch_credits_and_build(tmdb_movie: dict) -> dict:
+        tmdb_id     = tmdb_movie["id"]
+        poster_path = tmdb_movie.get("poster_path", "")
+        lang_code   = tmdb_movie.get("original_language", "")
+        language    = lang_map.get(lang_code, lang_code.upper() if lang_code else "")
+        try:
+            cr = requests.get(
+                f"https://api.themoviedb.org/3/movie/{tmdb_id}/credits",
+                params={"api_key": TMDB_API_KEY}, timeout=8)
+            cast_list = cr.json().get("cast", [])
+            top8 = ", ".join(c["name"] for c in cast_list[:8])
+        except Exception:
+            top8 = ""
         return {
-            "cast":       top6,
+            "cast":       top8,
             "language":   language,
             "poster_url": f"https://image.tmdb.org/t/p/w300{poster_path}" if poster_path else "",
         }
+
+    try:
+        # Step 1: lookup by IMDb ID
+        if imdb_id:
+            r = requests.get(
+                f"https://api.themoviedb.org/3/find/{imdb_id}",
+                params={"api_key": TMDB_API_KEY, "external_source": "imdb_id"},
+                timeout=8)
+            results = r.json().get("movie_results", [])
+            if results:
+                return _fetch_credits_and_build(results[0])
+
+        # Step 2: title+year search fallback
+        if title:
+            params = {"api_key": TMDB_API_KEY, "query": title, "include_adult": False}
+            if year: params["year"] = year
+            r2 = requests.get(
+                "https://api.themoviedb.org/3/search/movie",
+                params=params, timeout=8)
+            hits = r2.json().get("results", [])
+            if hits and year:
+                # Prefer exact year match
+                exact = [h for h in hits if h.get("release_date","")[:4] == str(year)]
+                hits  = exact if exact else hits
+            if hits:
+                return _fetch_credits_and_build(hits[0])
+
     except Exception:
-        return {}
+        pass
+    return {}
 
 
 # ══════════════════════════════════════════════
@@ -1329,8 +1348,12 @@ def _refresh_omdb_background():
 
             # ── TMDb: cast + poster ──────────────────────────────────────────
             imdb_id_final = _extract_imdb_id(m.get("imdb_url", ""))
-            if imdb_id_final and (not m.get("cast") or not m.get("poster_url")):
-                tmdb = tmdb_cast_and_poster(imdb_id_final)
+            if (not m.get("cast") or not m.get("poster_url") or not m.get("language")):
+                tmdb = tmdb_cast_and_poster(
+                    imdb_id_final or "",
+                    title=m.get("title",""),
+                    year=m.get("year")
+                )
                 if tmdb.get("cast"):       m["cast"]       = tmdb["cast"]
                 if tmdb.get("poster_url"): m["poster_url"] = tmdb["poster_url"]
 
@@ -1424,6 +1447,14 @@ _KNOWN_IMDB_IDS = {
     "the cabin in the woods||2011":      "tt1259521",
     "pig||2021":                         "tt11003218",
     "pig||2017":                         "tt11003218",  # year typo in DB
+    # Movies with wrong IMDb IDs from fuzzy OMDb match
+    "8½||1963":                          "tt0056801",
+    "spider-man||2002":                  "tt0145487",
+    "men in black 3||2012":              "tt1409024",
+    "star wars: the force awakens||2015":"tt2488496",
+    "the nice guys||2018":               "tt3799694",
+    "the nice guys||2016":               "tt3799694",
+    "a fistful of dynamite||1972":       "tt0067385",
 }
 
 
@@ -1674,7 +1705,7 @@ def _tmdb_refresh_background():
         filled = 0
         for i, m in enumerate(missing):
             imdb_id = _extract_imdb_id(m.get("imdb_url", ""))
-            tmdb    = tmdb_cast_and_poster(imdb_id)
+            tmdb    = tmdb_cast_and_poster(imdb_id, title=m.get("title",""), year=m.get("year"))
             if tmdb.get("cast"):
                 m["cast"]   = tmdb["cast"]
                 filled += 1
