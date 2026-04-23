@@ -78,6 +78,13 @@
   <a href="/suggest" class="btn btn-secondary-filled btn-sm">← Back to Recommendations</a>
 </div>
 
+<!-- Search bar -->
+<div style="margin-bottom:16px;display:flex;gap:10px;">
+  <input type="text" id="top-search" placeholder="Search movies..." style="flex:1;"
+         oninput="filterTopMovies(this.value)">
+  <button class="btn btn-secondary btn-sm" onclick="filterTopMovies('');document.getElementById('top-search').value=''">Clear</button>
+</div>
+
 <!-- Sub-tabs -->
 <div style="display:flex;gap:0;border:1px solid var(--panel-border);border-radius:8px 8px 0 0;background:rgba(13,31,60,0.88);margin-bottom:0;padding:0 8px;">
   <button class="top-subtab active" data-subtab="movies" onclick="switchSubtab('movies',this)">🎬 Top Movies</button>
@@ -288,6 +295,27 @@
     var max = Math.max(...data.map(x => x.count), 1);
     if (table === 'genre') renderGenreTable(data, max);
     else renderEraTable(data, max);
+  };
+
+
+  window.filterTopMovies = function(q) {
+    var ql = (q || '').toLowerCase().trim();
+    document.querySelectorAll('#top-table tbody .result-row').forEach(function(row) {
+      var titleCell = row.querySelector('.col-title');
+      var title = titleCell ? titleCell.textContent.toLowerCase() : '';
+      var details = document.getElementById('details-' + row.id.split('-')[1]);
+      if (!ql || title.indexOf(ql) >= 0) {
+        row.style.display = '';
+        if (details) details.style.display = 'none'; // collapse details on filter
+      } else {
+        row.style.display = 'none';
+        if (details) details.style.display = 'none';
+      }
+    });
+    // Hide section dividers if all rows after them are hidden
+    document.querySelectorAll('.section-divider').forEach(function(div) {
+      div.style.display = ql ? 'none' : '';
+    });
   };
 
   document.querySelectorAll('.title-btn').forEach(btn=>{

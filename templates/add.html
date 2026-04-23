@@ -258,6 +258,16 @@
       </div>
       <div id="refreshDone" style="display:none;margin-top:16px;" class="alert-success"></div>
       <div id="refreshErr"  style="display:none;margin-top:16px;" class="alert-error"></div>
+
+      <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--panel-border);">
+        <div class="panel-title" style="font-size:.72rem;">FORCE FIX KNOWN PROBLEMATIC MOVIES</div>
+        <p style="font-size:.82rem;color:var(--dim-white);margin-bottom:12px;">
+          Directly fetches 9 stubborn movies by their known IMDb ID (bypasses search entirely).
+          Run this after the main OMDb refresh.
+        </p>
+        <button class="btn btn-secondary btn-sm" id="forcefixBtn" onclick="runForceFix()">🔧 Force Fix Remaining</button>
+        <div id="forcefixResult" style="display:none;margin-top:10px;font-size:.82rem;font-family:monospace;white-space:pre-wrap;color:var(--star-white);"></div>
+      </div>
     </div>
 
     <!-- TMDb Refresh -->
@@ -780,6 +790,28 @@
       btn.disabled = false; btn.textContent = '🔄 Start Refresh';
     }
   });
+
+
+  window.runForceFix = async function() {
+    var btn = document.getElementById('forcefixBtn');
+    var out = document.getElementById('forcefixResult');
+    btn.disabled = true; btn.textContent = 'Fixing...';
+    out.style.display = 'block'; out.textContent = 'Running...';
+    try {
+      var res  = await fetch('/admin/force-fix-missing', {
+        method: 'POST', credentials: 'same-origin'
+      });
+      var data = await res.json();
+      out.textContent = '✅ Fixed ' + data.total_fixed + ':\n' +
+        data.fixed.join('\n') +
+        (data.total_skipped ? '\n\n⏭ Skipped ' + data.total_skipped + ':\n' + data.skipped.join('\n') : '');
+      out.style.color = data.total_fixed > 0 ? 'var(--cyan)' : 'var(--dim-white)';
+    } catch(e) {
+      out.textContent = '❌ Error: ' + e.message;
+      out.style.color = '#fca5a5';
+    }
+    btn.disabled = false; btn.textContent = '🔧 Force Fix Remaining';
+  };
 
   function pollRefresh() {
     fetch('/admin/refresh-omdb/progress', { credentials: 'same-origin' }).then(r=>r.json()).then(data => {
