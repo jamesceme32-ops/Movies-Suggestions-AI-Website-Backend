@@ -591,8 +591,12 @@ def build_taste_profile(df):
         cnt_genre = {k: len(v) for k, v in genre_groups.items()}
         cnt_era   = {k: len(v) for k, v in era_groups.items()}
 
-        both = rated.dropna(subset=["IMDB Rating"])
-        bias = float((both["My Score"] - both["IMDB Rating"]).mean()) if not both.empty else 0.0
+        # Join on movies that have both personal score AND imdb rating
+        both = rated[rated["IMDB Rating"].notna() & (rated["IMDB Rating"] > 0)]
+        if not both.empty:
+            bias = float((both["My Score"] - both["IMDB Rating"]).mean())
+        else:
+            bias = 0.0
 
         return {
             # Normalized Bayesian scores — used for taste matching
@@ -1458,6 +1462,29 @@ _KNOWN_IMDB_IDS = {
 }
 
 
+@app.route("/admin/bias-debug")
+@admin_required
+def admin_bias_debug():
+    """Check bias calculation — shows how many movies have both scores."""
+    sid = get_sid()
+    if sid not in STORE: load_store_from_db(sid)
+    df = get_df(sid)
+    if df is None: return jsonify({"error": "no data"})
+    rated = df[df["My Score"].notna() & df["Watched"]].copy()
+    both  = rated[rated["IMDB Rating"].notna() & (rated["IMDB Rating"] > 0)]
+    bias  = float((both["My Score"] - both["IMDB Rating"]).mean()) if not both.empty else 0.0
+    sample = both.head(5)[["Title","My Score","IMDB Rating"]].to_dict("records")
+    return jsonify({
+        "total_reviewed":     len(rated),
+        "have_imdb_rating":   int(rated["IMDB Rating"].notna().sum()),
+        "have_both":          len(both),
+        "bias":               round(bias, 3),
+        "sample_movies":      sample,
+        "my_score_dtype":     str(rated["My Score"].dtype),
+        "imdb_rating_dtype":  str(rated["IMDB Rating"].dtype),
+    })
+
+
 @app.route("/admin/tmdb-missing")
 @admin_required
 def admin_tmdb_missing():
@@ -1508,13 +1535,20 @@ def admin_force_fix():
     skipped = []
 
     for m in movies:
-        if not _needs_refresh(m):
-            continue
         title = m.get("title", "")
         year  = m.get("year")
         key   = f"{title.lower()}||{year or ''}"
         imdb_id = _KNOWN_IMDB_IDS.get(key)
 
+        # Also fix movies with wrong IMDb URLs (even if they have ratings)
+        if imdb_id:
+            current_id = _extract_imdb_id(m.get("imdb_url", ""))
+            if current_id != imdb_id:
+                m["imdb_url"] = f"https://www.imdb.com/title/{imdb_id}/"
+
+        if not _needs_refresh(m) and not imdb_id:
+            skipped.append(title)
+            continue
         if not imdb_id:
             skipped.append(title)
             continue
