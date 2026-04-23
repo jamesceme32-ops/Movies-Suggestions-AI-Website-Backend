@@ -795,7 +795,7 @@ def suggest():
         "genres":      top_genres,
         "eras":        top(profile.get("raw_era", {})),
         "durs":        top(profile.get("raw_dur", {}), 2),
-        "bias":        (f"+{bias:.1f}" if bias >= 0 else f"{bias:.1f}") + " vs IMDb",
+        "bias":        (f"+{bias:.2f}" if bias >= 0 else f"{bias:.2f}") + " vs IMDb",
         "ml":          store["model"] is not None,
         "global_mean": profile.get("global_mean", 0),
     }
