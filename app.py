@@ -1474,11 +1474,21 @@ def admin_bias_debug():
     both  = rated[rated["IMDB Rating"].notna() & (rated["IMDB Rating"] > 0)]
     bias  = float((both["My Score"] - both["IMDB Rating"]).mean()) if not both.empty else 0.0
     sample = both.head(5)[["Title","My Score","IMDB Rating"]].to_dict("records")
+    # Calculate per-movie differences
+    both2 = both.copy()
+    both2["diff"] = both2["My Score"] - both2["IMDB Rating"]
+    top_over  = both2.nlargest(5, "diff")[["Title","My Score","IMDB Rating","diff"]].to_dict("records")
+    top_under = both2.nsmallest(5, "diff")[["Title","My Score","IMDB Rating","diff"]].to_dict("records")
     return jsonify({
         "total_reviewed":     len(rated),
         "have_imdb_rating":   int(rated["IMDB Rating"].notna().sum()),
         "have_both":          len(both),
         "bias":               round(bias, 3),
+        "my_avg_score":       round(float(both["My Score"].mean()), 3),
+        "imdb_avg_score":     round(float(both["IMDB Rating"].mean()), 3),
+        "std_dev_diff":       round(float(both2["diff"].std()), 3),
+        "most_overrated_vs_imdb":  top_over,
+        "most_underrated_vs_imdb": top_under,
         "sample_movies":      sample,
         "my_score_dtype":     str(rated["My Score"].dtype),
         "imdb_rating_dtype":  str(rated["IMDB Rating"].dtype),
