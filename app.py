@@ -762,9 +762,10 @@ def suggest():
     def _fmt_genre(g):
         return _GENRE_DISPLAY.get(g.lower(), g.title())
 
-    top_genres_list = sorted(bay_genre.items(), key=lambda x: -x[1])[:3]
+    # Fixed display genres — always show these three, with live movie counts
+    _PINNED_GENRES = ["sci-fi", "comedy", "mystery"]
     top_genres = ", ".join(
-        f"{_fmt_genre(k)} ({cnt_genre.get(k, 0)})" for k, _ in top_genres_list
+        f"{_fmt_genre(g)} ({cnt_genre.get(g, 0)})" for g in _PINNED_GENRES
     )
     profile_summary = {
         "rated":       profile.get("rated_count", 0),
