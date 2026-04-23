@@ -621,11 +621,41 @@
           <span style="font-size:.88rem;font-weight:500;">${m.title}</span>
           <span style="font-size:.75rem;color:var(--dim-white);margin-left:8px;">${m.year||'?'} ${m.my_score != null ? '· '+m.my_score+'/10' : ''} ${m.watched ? '· Watched' : ''}</span>
         </div>
-        <button class="btn btn-secondary btn-sm" onclick="openEditForm(window._editMatches[${i}])">
-          ✏️ Edit
-        </button>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-secondary btn-sm" onclick="openEditForm(window._editMatches[${i}])">✏️ Edit</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteMovie(window._editMatches[${i}])">🗑</button>
+        </div>
       </div>`).join('');
   }
+
+
+  window.deleteMovie = async function(m) {
+    if (!confirm('Delete "' + m.title + ' (' + (m.year||'?') + ')" from your list? This cannot be undone.')) return;
+    try {
+      var res  = await fetch('/api/delete_movie', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ title: m.title, year: m.year })
+      });
+      var data = await res.json();
+      if (data.success) {
+        showFlash('🗑 "' + m.title + '" deleted.', true);
+        // Remove from local cache and re-render search
+        editAllMovies = editAllMovies.filter(function(x) {
+          return !(x.title === m.title && x.year === m.year);
+        });
+        editLoaded = true;
+        document.getElementById('editForm').style.display = 'none';
+        window.doEditSearch();
+        poolLoaded = false;
+      } else {
+        showFlash(data.error || 'Delete failed.', false);
+      }
+    } catch(e) {
+      showFlash('Error: ' + e.message, false);
+    }
+  };
 
   window.openEditForm = function openEditForm(m) {
     editCurrentOrig = m;
