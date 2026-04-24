@@ -115,6 +115,7 @@
     <button class="tab-btn" data-tab="top10">⭐ My Top 10</button>
     <button class="tab-btn" data-tab="edit">✏️ Edit Movies</button>
     <button class="tab-btn" data-tab="refresh">🔄 Refresh Data</button>
+    <button class="tab-btn" data-tab="suggestions">📬 Suggested Movies <span id="suggestions-badge" style="display:none;background:var(--gold);color:#000;border-radius:10px;padding:1px 7px;font-size:.7rem;margin-left:4px;"></span></button>
   </div>
 
   <!-- ══ TAB: SEARCH & ADD ══ -->
@@ -295,6 +296,15 @@
 
   </div>
 
+  <!-- ══ TAB: SUGGESTED MOVIES ══ -->
+  <div class="tab-pane" id="tab-suggestions">
+    <div class="panel">
+      <div class="panel-title">SUGGESTED MOVIES</div>
+      <p style="font-size:.84rem;color:var(--dim-white);margin-bottom:16px;">Movies suggested by visitors. Click ✅ to add to your list or ✗ to dismiss.</p>
+      <div id="suggestions-list"><div style="color:var(--dim-white);font-size:.83rem;padding:12px;">Loading...</div></div>
+    </div>
+  </div>
+
   <div style="margin-top:8px;text-align:right;">
     <a href="/admin/logout" class="btn btn-secondary btn-sm">🔒 Logout</a>
   </div>
@@ -365,6 +375,7 @@
       document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
       if (btn.dataset.tab === 'top10' && !poolLoaded) loadPool();
       if (btn.dataset.tab === 'edit') { if (window.loadEditMovies) window.loadEditMovies(); }
+      if (btn.dataset.tab === 'suggestions') { loadSuggestions(); }
     });
   });
 
@@ -468,6 +479,14 @@
       var data = await res.json();
       if (data.success) {
         showFlash(`✅ "${selectedMovie.title}" added!`, true);
+        // If added from a suggestion, dismiss it
+        if (window._pendingSuggestionIdx !== undefined) {
+          fetch('/api/suggestions/' + window._pendingSuggestionIdx, {
+            method: 'DELETE', credentials: 'same-origin'
+          });
+          window._pendingSuggestionIdx = undefined;
+          suggestionsLoaded = false;
+        }
         document.getElementById('detailsPanel').style.display='none'; document.getElementById('searchResults').innerHTML=''; document.getElementById('searchInput').value=''; selectedMovie=null; selectedScore=null;
         poolLoaded=false;
         // Don't clear editLoaded — reload on next search if needed
@@ -883,6 +902,108 @@
       }
     }).catch(() => setTimeout(pollTmdb, 2000));
   }
+
+  // ══ SUGGESTIONS TAB ════════════════════════════════════════════════════
+  var suggestionsLoaded = false;
+
+  async function loadSuggestions() {
+    suggestionsLoaded = true;
+    var el = document.getElementById('suggestions-list');
+    try {
+      var res  = await fetch('/api/suggestions', { credentials: 'same-origin' });
+      var data = await res.json();
+      var items = data.suggestions || [];
+
+      // Update badge
+      var badge = document.getElementById('suggestions-badge');
+      if (items.length > 0) {
+        badge.textContent = items.length;
+        badge.style.display = 'inline';
+      } else {
+        badge.style.display = 'none';
+      }
+
+      if (!items.length) {
+        el.innerHTML = '<div style="color:var(--dim-white);font-size:.83rem;padding:24px;text-align:center;">No suggestions yet.</div>';
+        return;
+      }
+
+      el.innerHTML = items.map((s, i) => `
+        <div id="suggestion-${i}" style="display:flex;gap:16px;align-items:flex-start;padding:16px;border-bottom:1px solid var(--panel-border);">
+          ${s.poster ? `<img src="${s.poster}" style="width:60px;min-width:60px;height:90px;object-fit:cover;border-radius:6px;" alt="${s.title}">` : '<div style="width:60px;min-width:60px;height:90px;background:rgba(64,200,240,.07);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:1.5rem;">🎬</div>'}
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:.95rem;font-weight:600;color:var(--star-white);">${s.title} <span style="color:var(--dim-white);font-weight:400;">(${s.year||'?'})</span></div>
+            <div style="font-size:.78rem;color:var(--dim-white);margin:3px 0 6px;">${s.genre||''} ${s.duration ? '· '+s.duration : ''} ${s.imdb_rating ? '· IMDb: '+s.imdb_rating : ''}</div>
+            <div style="font-size:.8rem;color:var(--dim-white);margin-bottom:6px;">${s.director ? '<strong style="color:var(--cyan);">Dir:</strong> '+s.director+' ' : ''}${s.actors ? '<strong style="color:var(--cyan);">Cast:</strong> '+s.actors : ''}</div>
+            ${s.plot ? `<div style="font-size:.78rem;color:var(--dim-white);margin-bottom:8px;line-height:1.5;">${s.plot}</div>` : ''}
+            ${s.note ? `<div style="font-size:.78rem;color:rgba(240,192,64,.8);margin-bottom:8px;">💬 "${s.note}"</div>` : ''}
+            <div style="font-size:.72rem;color:var(--dim-white);margin-bottom:10px;">Suggested${s.suggested_by ? ' by <strong>'+s.suggested_by+'</strong>' : ''} · ${s.timestamp||''}</div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-primary btn-sm" onclick="acceptSuggestion(${i})">✅ Add to My List</button>
+              <button class="btn btn-danger btn-sm" onclick="dismissSuggestion(${i})">✗ Dismiss</button>
+              ${s.imdb_url ? `<a class="link-imdb" href="${s.imdb_url}" target="_blank" rel="noopener" style="padding:4px 8px;">IMDb</a>` : ''}
+            </div>
+          </div>
+        </div>`).join('');
+
+    } catch(e) {
+      el.innerHTML = '<div style="color:#fca5a5;padding:12px;">Failed to load: ' + e.message + '</div>';
+    }
+  }
+
+  window.acceptSuggestion = async function(i) {
+    var res  = await fetch('/api/suggestions', { credentials: 'same-origin' });
+    var data = await res.json();
+    var s    = (data.suggestions || [])[i];
+    if (!s) return;
+    // Pre-fill the add form with this suggestion
+    selectedMovie = {
+      title: s.title, year: s.year, genre: s.genre, duration: s.duration,
+      imdb_rating: s.imdb_rating, imdb_id: s.imdb_id, imdb_url: s.imdb_url,
+      google_url: s.google_url, actors: s.actors, director: s.director,
+      plot: s.plot, poster_url: s.poster, cast: '', poster: s.poster
+    };
+    // Switch to Search & Add tab and show details panel
+    document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
+    document.querySelectorAll('.tab-pane').forEach(function(p) { p.classList.remove('active'); });
+    document.querySelector('[data-tab="search"]').classList.add('active');
+    document.getElementById('tab-search').classList.add('active');
+    // Populate details panel
+    document.getElementById('d-title').textContent    = s.title    || '—';
+    document.getElementById('d-year').textContent     = s.year     || '—';
+    document.getElementById('d-genre').textContent    = s.genre    || '—';
+    document.getElementById('d-duration').textContent = s.duration || '—';
+    document.getElementById('d-imdb').textContent     = s.imdb_rating || '—';
+    document.getElementById('d-director').textContent = s.director || '—';
+    document.getElementById('d-actors').textContent   = s.actors   || '—';
+    document.getElementById('d-plot').textContent     = s.plot     || '—';
+    var gl = document.getElementById('d-google-link');
+    if (gl) { gl.href = s.google_url || '#'; gl.textContent = s.google_url || '—'; }
+    document.getElementById('watchedCheck').checked = false;
+    document.getElementById('score-section').style.display = 'none';
+    document.getElementById('detailsPanel').style.display = 'block';
+    // Mark suggestion as pending-add so we dismiss it on successful save
+    window._pendingSuggestionIdx = i;
+    showFlash('Movie loaded from suggestion — set watched/score then click Add.', true);
+  };
+
+  window.dismissSuggestion = async function(i) {
+    if (!confirm('Dismiss this suggestion?')) return;
+    try {
+      var res  = await fetch('/api/suggestions/' + i, {
+        method: 'DELETE', credentials: 'same-origin'
+      });
+      var data = await res.json();
+      if (data.success) {
+        suggestionsLoaded = false;
+        loadSuggestions();
+        showFlash('Suggestion dismissed.', true);
+      } else {
+        showFlash(data.error || 'Failed.', false);
+      }
+    } catch(e) { showFlash('Error: ' + e.message, false); }
+  };
+
 
 </script>
 {% endblock %}
