@@ -1818,6 +1818,143 @@ def admin_tmdb_progress():
     return jsonify(TMDB_REFRESH_STATUS)
 
 
+# ══════════════════════════════════════════════
+#  SUGGESTIONS — PUBLIC SUGGEST-A-MOVIE
+# ══════════════════════════════════════════════
+
+from collections import defaultdict
+import time as _time
+
+_rate_store = defaultdict(list)
+
+def _rate_ok(ip, limit=15, window=3600):
+    now = _time.time()
+    _rate_store[ip] = [t for t in _rate_store[ip] if now - t < window]
+    if len(_rate_store[ip]) >= limit:
+        return False
+    _rate_store[ip].append(now)
+    return True
+
+
+def _load_suggestions():
+    try:
+        data = r2_storage.load_json("suggestions.json")
+        return data.get("suggestions", []) if data else []
+    except Exception:
+        return []
+
+
+def _save_suggestions(suggestions):
+    r2_storage.save_json("suggestions.json", {"suggestions": suggestions})
+
+
+@app.route("/suggest-add")
+def suggest_add_page():
+    return render_template("suggest_add.html")
+
+
+@app.route("/public/search_movie")
+def public_search_movie():
+    ip = request.remote_addr or "unknown"
+    if not _rate_ok(ip):
+        return jsonify({"results": [], "error": "Too many searches. Please try again later."})
+    q = request.args.get("q", "").strip()
+    y = request.args.get("year", "").strip()
+    if not q:
+        return jsonify({"results": [], "error": "No query"})
+    if not OMDB_API_KEY:
+        return jsonify({"results": [], "error": "Search unavailable."})
+    results = omdb_search(q, y)
+    return jsonify({"results": results})
+
+
+@app.route("/public/movie_details")
+def public_movie_details():
+    imdb_id = request.args.get("id", "").strip()
+    if not imdb_id:
+        return jsonify({"error": "No ID"})
+    data = omdb_details(imdb_id)
+    if not data:
+        return jsonify({"error": "Movie not found"})
+    actors = data.get("Actors", "")
+    top6   = ", ".join(a.strip() for a in actors.split(",")[:6])
+    title  = data.get("Title", "")
+    year   = data.get("Year", "")
+    return jsonify({
+        "title":       title,
+        "year":        year,
+        "genre":       data.get("Genre", "").replace(", ", "/").replace(",", "/"),
+        "duration":    data.get("Runtime", ""),
+        "imdb_id":     data.get("imdbID", ""),
+        "imdb_rating": data.get("imdbRating", ""),
+        "imdb_url":    f"https://www.imdb.com/title/{data.get('imdbID','')}/",
+        "google_url":  f"https://www.google.com/search?q={quote_plus(title+' '+year+' movie')}",
+        "actors":      top6,
+        "director":    data.get("Director", ""),
+        "plot":        data.get("Plot", ""),
+        "poster":      data.get("Poster", ""),
+    })
+
+
+@app.route("/public/suggest_movie", methods=["POST"])
+def public_suggest_movie():
+    ip = request.remote_addr or "unknown"
+    if not _rate_ok(ip, limit=5, window=3600):
+        return jsonify({"success": False, "error": "Too many suggestions. Please try again later."})
+    data = request.get_json()
+    # Honeypot check
+    if data.get("hp_website"):
+        return jsonify({"success": True})  # silently accept — bots don't know
+    title = data.get("title", "").strip()
+    if not title:
+        return jsonify({"success": False, "error": "No title provided."})
+    suggestions = _load_suggestions()
+    # Deduplicate by imdb_id
+    imdb_id = data.get("imdb_id", "")
+    if imdb_id and any(s.get("imdb_id") == imdb_id for s in suggestions):
+        return jsonify({"success": True})  # already suggested — silent ok
+    import datetime
+    suggestions.append({
+        "title":        title,
+        "year":         data.get("year", ""),
+        "genre":        data.get("genre", ""),
+        "duration":     data.get("duration", ""),
+        "imdb_rating":  data.get("imdb_rating", ""),
+        "imdb_id":      imdb_id,
+        "imdb_url":     data.get("imdb_url", ""),
+        "google_url":   data.get("google_url", ""),
+        "actors":       data.get("actors", ""),
+        "director":     data.get("director", ""),
+        "plot":         data.get("plot", ""),
+        "poster":       data.get("poster", ""),
+        "suggested_by": data.get("suggested_by", ""),
+        "note":         data.get("note", ""),
+        "timestamp":    datetime.datetime.utcnow().strftime("%b %d, %Y"),
+    })
+    _save_suggestions(suggestions)
+    return jsonify({"success": True})
+
+
+@app.route("/api/suggestions")
+@admin_required
+def api_get_suggestions():
+    return jsonify({"suggestions": _load_suggestions()})
+
+
+@app.route("/api/suggestions/<int:idx>", methods=["DELETE"])
+@admin_required
+def api_delete_suggestion(idx):
+    try:
+        suggestions = _load_suggestions()
+        if idx < 0 or idx >= len(suggestions):
+            return jsonify({"success": False, "error": "Index out of range"})
+        suggestions.pop(idx)
+        _save_suggestions(suggestions)
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)

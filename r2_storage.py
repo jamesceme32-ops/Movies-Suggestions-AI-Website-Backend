@@ -113,3 +113,21 @@ def upload_bookmarks(file_bytes: bytes, original_filename: str = "") -> dict:
                 "message": f"Saved from '{original_filename}'.",
                 "original_name": original_filename}
     return {"success": False, "message": "Upload failed.", "original_name": original_filename}
+
+
+def load_json(key: str) -> dict:
+    """Load any JSON file from R2 by key."""
+    try:
+        obj = _client().get_object(Bucket=_bucket(), Key=key)
+        return json.loads(obj["Body"].read())
+    except Exception:
+        return {}
+
+
+def save_json(key: str, data: dict):
+    """Save any dict as JSON to R2 by key."""
+    body = json.dumps(data, ensure_ascii=False, default=str)
+    _client().put_object(
+        Bucket=_bucket(), Key=key,
+        Body=body.encode("utf-8"), ContentType="application/json"
+    )
