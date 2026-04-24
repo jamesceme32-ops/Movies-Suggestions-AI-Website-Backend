@@ -18,6 +18,17 @@
   .poster-thumb:hover { transform:scale(1.1); box-shadow:0 4px 16px rgba(0,0,0,.6); }
   .poster-ph { width:42px; min-width:42px; height:62px; border-radius:4px; background:rgba(64,200,240,.07); border:1px solid var(--panel-border); display:flex; align-items:center; justify-content:center; font-size:1rem; color:var(--dim-white); }
 
+
+  .style-btn-wrap { position:relative; display:inline-block; }
+  .style-tooltip {
+    display:none; position:absolute; bottom:calc(100% + 8px); left:50%;
+    transform:translateX(-50%); background:#111827; border:1px solid var(--panel-border);
+    border-radius:8px; padding:8px 12px; font-size:.75rem; color:var(--star-white);
+    width:200px; line-height:1.5; z-index:200; font-family:'Inter',sans-serif;
+    font-weight:400; text-transform:none; letter-spacing:0; white-space:normal;
+    pointer-events:none; text-align:center;
+  }
+  .style-btn-wrap:hover .style-tooltip { display:block; }
   .filter-section { margin-bottom:20px; }
 
   /* Table */
@@ -89,8 +100,16 @@
     <div class="filter-section">
       <div class="form-label">Recommendation Style</div>
       <div class="toggle-group" id="style-tabs">
+        {% set style_tips = {
+          'Trust IMDB': 'Ranks by IMDb crowd rating. Best for broadly acclaimed films.',
+          'Balanced':   'Blends IMDb rating with my personal taste profile.',
+          'My Taste':   'Ranks based on my AI formulated movie taste profile.'
+        } %}
         {% for s in styles %}
-        <button type="button" class="toggle-btn {% if (form.style or 'Balanced')==s %}active-gold{% endif %}" data-val="{{ s }}">{{ s }}</button>
+        <span style="position:relative;display:inline-block;">
+          <button type="button" class="toggle-btn {% if (form.style or 'Balanced')==s %}active-gold{% endif %}" data-val="{{ s }}">{{ s }}</button>
+          <div class="style-tooltip">{{ style_tips.get(s, '') }}</div>
+        </span>
         {% endfor %}
       </div>
       <input type="hidden" name="style" id="style-input" value="{{ form.style or 'Balanced' }}">
