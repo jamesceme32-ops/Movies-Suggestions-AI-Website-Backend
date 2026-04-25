@@ -181,14 +181,7 @@
       .nav-links { gap: 10px; }
       nav a.nav-link { font-size:.75rem; }
 
-      /* Hide columns on mobile — keep poster, title, imdb, my score, links */
-      .col-year, .col-dur, .col-genre,
-      th[data-col="1"], th[data-col="2"], th[data-col="3"],
-      th[data-col="6"], th[data-col="7"],
-      td:nth-child(3), td:nth-child(4), td:nth-child(5),
-      td:nth-child(7), td:nth-child(8) { display: none !important; }
-
-      /* On suggest page: hide taste%, prediction, composite, status cols */
+      /* Column hiding handled per-page in suggest.html and top.html */
       .col-status { display: none !important; }
 
       /* Make table fill width better */

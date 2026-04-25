@@ -75,22 +75,23 @@
   .form-actions { display:flex; align-items:center; gap:12px; margin-top:24px; flex-wrap:wrap; }
 
   @media (max-width: 768px) {
-    /* Hide: year, genre, duration, prediction, taste, composite, status */
-    #results-table th:nth-child(3),  /* year */
+    /* Suggest table: 1=poster 2=title 3=year 4=genre 5=dur 6=imdb 7=pred 8=taste 9=comp 10=status 11=links */
+    /* Hide year/genre/dur/pred/taste/comp/status cols — shown as sub-text in title cell */
+    #results-table th:nth-child(3),
     #results-table td:nth-child(3),
-    #results-table th:nth-child(4),  /* genre */
+    #results-table th:nth-child(4),
     #results-table td:nth-child(4),
-    #results-table th:nth-child(5),  /* duration */
+    #results-table th:nth-child(5),
     #results-table td:nth-child(5),
-    #results-table th:nth-child(6),  /* imdb - keep on mobile actually */
-    #results-table th:nth-child(7),  /* prediction */
+    #results-table th:nth-child(7),
     #results-table td:nth-child(7),
-    #results-table th:nth-child(8),  /* taste */
+    #results-table th:nth-child(8),
     #results-table td:nth-child(8),
-    #results-table th:nth-child(9),  /* composite */
+    #results-table th:nth-child(9),
     #results-table td:nth-child(9),
-    #results-table th:nth-child(10), /* status */
+    #results-table th:nth-child(10),
     #results-table td:nth-child(10) { display: none !important; }
+    .mobile-sub { display:block !important; font-size:.72rem; color:var(--dim-white); margin-top:3px; }
     .suggest-header { flex-direction: column; gap: 8px; padding: 20px 0 16px; }
     .suggest-title { font-size: 1.3rem; }
   }
@@ -243,6 +244,11 @@
           </td>
           <td class="col-title">
             <button class="title-btn" data-idx="{{ loop.index0 }}">{{ m.title }}</button>
+            <span class="mobile-sub" style="display:none;">
+              {{- m.year or '' -}}{% if m.genre %} · {{ m.genre }}{% endif %}{% if m.duration %} · {{ m.duration }}{% endif %}
+              {% if m.imdb %} · ⭐{{ m.imdb }}{% endif %}
+              {% if m.watched %} · seen {{ m.my_score }}/10{% endif %}
+            </span>
           </td>
           <td class="col-year score-dim">{{ m.year or '—' }}</td>
           <td class="col-genre">{{ m.genre or '—' }}</td>
