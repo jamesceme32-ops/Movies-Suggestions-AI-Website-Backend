@@ -19,16 +19,27 @@
   .poster-ph { width:42px; min-width:42px; height:62px; border-radius:4px; background:rgba(64,200,240,.07); border:1px solid var(--panel-border); display:flex; align-items:center; justify-content:center; font-size:1rem; color:var(--dim-white); }
 
 
-  .style-btn-wrap { position:relative; display:inline-block; }
+  .style-tooltip-wrap { position:relative; display:inline-block; }
   .style-tooltip {
-    display:none; position:absolute; bottom:calc(100% + 8px); left:50%;
-    transform:translateX(-50%); background:#111827; border:1px solid var(--panel-border);
-    border-radius:8px; padding:8px 12px; font-size:.75rem; color:var(--star-white);
-    width:200px; line-height:1.5; z-index:200; font-family:'Inter',sans-serif;
-    font-weight:400; text-transform:none; letter-spacing:0; white-space:normal;
+    visibility:hidden; opacity:0;
+    position:absolute; bottom:calc(100% + 10px); left:50%;
+    transform:translateX(-50%);
+    background:#111827; border:1px solid rgba(64,200,240,0.3);
+    border-radius:8px; padding:8px 12px; font-size:.75rem; color:#e8eef8;
+    width:210px; line-height:1.55; z-index:9999;
+    font-family:'Inter',sans-serif; font-weight:400;
+    text-transform:none; letter-spacing:0; white-space:normal;
     pointer-events:none; text-align:center;
+    transition: opacity .15s ease, visibility .15s ease;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.6);
   }
-  .style-btn-wrap:hover .style-tooltip { display:block; }
+  .style-tooltip::after {
+    content:''; position:absolute; top:100%; left:50%;
+    transform:translateX(-50%);
+    border:6px solid transparent;
+    border-top-color:#111827;
+  }
+  .style-tooltip-wrap:hover .style-tooltip { visibility:visible; opacity:1; }
   .filter-section { margin-bottom:20px; }
 
   /* Table */
@@ -62,6 +73,27 @@
   .details-inner p { color:var(--star-white); line-height:1.55; }
 
   .form-actions { display:flex; align-items:center; gap:12px; margin-top:24px; flex-wrap:wrap; }
+
+  @media (max-width: 768px) {
+    /* Hide: year, genre, duration, prediction, taste, composite, status */
+    #results-table th:nth-child(3),  /* year */
+    #results-table td:nth-child(3),
+    #results-table th:nth-child(4),  /* genre */
+    #results-table td:nth-child(4),
+    #results-table th:nth-child(5),  /* duration */
+    #results-table td:nth-child(5),
+    #results-table th:nth-child(6),  /* imdb - keep on mobile actually */
+    #results-table th:nth-child(7),  /* prediction */
+    #results-table td:nth-child(7),
+    #results-table th:nth-child(8),  /* taste */
+    #results-table td:nth-child(8),
+    #results-table th:nth-child(9),  /* composite */
+    #results-table td:nth-child(9),
+    #results-table th:nth-child(10), /* status */
+    #results-table td:nth-child(10) { display: none !important; }
+    .suggest-header { flex-direction: column; gap: 8px; padding: 20px 0 16px; }
+    .suggest-title { font-size: 1.3rem; }
+  }
   .no-results { text-align:center; padding:48px; font-size:.9rem; color:var(--dim-white); }
   .no-results span { font-size:2rem; display:block; margin-bottom:12px; }
 </style>
@@ -106,7 +138,7 @@
           'My Taste':   'Ranks based on my AI formulated movie taste profile.'
         } %}
         {% for s in styles %}
-        <span style="position:relative;display:inline-block;">
+        <span class="style-tooltip-wrap">
           <button type="button" class="toggle-btn {% if (form.style or 'Balanced')==s %}active-gold{% endif %}" data-val="{{ s }}">{{ s }}</button>
           <div class="style-tooltip">{{ style_tips.get(s, '') }}</div>
         </span>

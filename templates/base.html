@@ -168,6 +168,78 @@
 
     /* Transition handled by SPA navigator */
     .page-fade { opacity: 1; }
+
+    /* ── Mobile responsive ───────────────────────────────────────────────── */
+    @media (max-width: 768px) {
+      .page { padding: 0 12px 40px; }
+
+      nav {
+        padding: 12px 16px;
+        gap: 8px;
+      }
+      .nav-brand { font-size:.85rem; }
+      .nav-links { gap: 10px; }
+      nav a.nav-link { font-size:.75rem; }
+
+      /* Hide columns on mobile — keep poster, title, imdb, my score, links */
+      .col-year, .col-dur, .col-genre,
+      th[data-col="1"], th[data-col="2"], th[data-col="3"],
+      th[data-col="6"], th[data-col="7"],
+      td:nth-child(3), td:nth-child(4), td:nth-child(5),
+      td:nth-child(7), td:nth-child(8) { display: none !important; }
+
+      /* On suggest page: hide taste%, prediction, composite, status cols */
+      .col-status { display: none !important; }
+
+      /* Make table fill width better */
+      table { font-size:.82rem; }
+      .table-wrap { border-radius: 6px; }
+      tbody td { padding: 8px 8px; }
+      thead th { padding: 8px 8px; font-size:.65rem; }
+
+      /* Poster smaller on mobile */
+      .poster-thumb { width:36px; min-width:36px; height:54px; }
+      .poster-ph    { width:36px; min-width:36px; height:54px; font-size:.85rem; }
+
+      /* Panel padding */
+      .panel { padding: 16px 14px; }
+
+      /* Toggle buttons wrap nicely */
+      .toggle-group { gap: 6px; }
+      .toggle-btn { font-size:.78rem; padding: 5px 10px; }
+
+      /* Stats row stack */
+      .stats-row { flex-direction: column; gap: 8px; }
+
+      /* Buttons full width on mobile */
+      .form-actions { flex-direction: column; align-items: stretch; }
+      .form-actions .btn { justify-content: center; }
+
+      /* Details inner single column */
+      .details-inner { grid-template-columns: 1fr !important; gap: 10px; }
+      .details-row td { padding: 10px 10px !important; }
+
+      /* Profile grid single column */
+      .profile-grid { grid-template-columns: 1fr 1fr; }
+
+      /* Hero title smaller */
+      .hero-title { font-size: clamp(1.4rem, 6vw, 2rem); }
+      .hero-text-box { padding: 18px 20px 14px; }
+
+      /* Steps grid 2 col on mobile */
+      .steps { grid-template-columns: 1fr 1fr !important; gap: 10px; }
+      .step { padding: 14px 12px; }
+
+      /* Rank badge smaller */
+      .rank-badge { width: 22px; height: 22px; font-size: .7rem; }
+    }
+
+    @media (max-width: 480px) {
+      /* Very small phones — single column steps */
+      .steps { grid-template-columns: 1fr !important; }
+      .profile-grid { grid-template-columns: 1fr; }
+      nav { flex-direction: column; align-items: flex-start; }
+    }
   </style>
   {% block head %}{% endblock %}
 </head>

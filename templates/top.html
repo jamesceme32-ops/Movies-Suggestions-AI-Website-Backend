@@ -62,6 +62,19 @@
   .poster-thumb:hover { transform:scale(1.1); box-shadow:0 4px 16px rgba(0,0,0,.6); }
   .poster-ph { width:42px; min-width:42px; height:62px; border-radius:4px; background:rgba(64,200,240,.07); border:1px solid var(--panel-border); display:flex; align-items:center; justify-content:center; font-size:1rem; color:var(--dim-white); }
 
+
+  @media (max-width: 768px) {
+    /* Keep: rank, poster, title, my score, imdb, links */
+    #top-table th:nth-child(4),  /* year */
+    #top-table td:nth-child(4),
+    #top-table th:nth-child(5),  /* genre */
+    #top-table td:nth-child(5),
+    #top-table th:nth-child(6),  /* duration */
+    #top-table td:nth-child(6) { display: none !important; }
+    .top-header { flex-direction: column; gap: 10px; padding: 16px 0 14px; }
+    .top-title { font-size: 1.3rem; }
+    #top-search { font-size:.85rem; }
+  }
   th.sortable { cursor:pointer; }
   th.sortable:hover { color:var(--gold); }
   th .sort-arrow { margin-left:3px; opacity:.4; }
