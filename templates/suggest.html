@@ -61,6 +61,9 @@
 
   /* Clickable title */
   .title-btn { background:none; border:none; color:var(--star-white); font-family:'Inter',sans-serif; font-size:.88rem; font-weight:500; cursor:pointer; text-align:left; padding:0; line-height:1.4; }
+  .title-btn:hover { color:var(--cyan); }
+  .title-btn .expand-arrow { display:inline-block; font-size:.65rem; color:var(--cyan); opacity:.8; margin-left:5px; transition:transform .2s; vertical-align:middle; background:rgba(64,200,240,.12); border:1px solid rgba(64,200,240,.3); border-radius:3px; padding:1px 5px; font-family:'Inter',sans-serif; }
+  .title-btn.open .expand-arrow { transform:rotate(180deg); }
   .title-btn:hover { color:var(--cyan); text-decoration:underline; }
   .title-btn::after { content:' ▾'; font-size:.65rem; color:var(--dim-white); }
   .title-btn.open::after { content:' ▴'; color:var(--cyan); }
@@ -250,7 +253,7 @@
             {% endif %}
           </td>
           <td class="col-title">
-            <button class="title-btn" data-idx="{{ loop.index0 }}">{{ m.title }}</button>
+            <button class="title-btn" data-idx="{{ loop.index0 }}">{{ m.title }} <span class="expand-arrow">▾ details</span></button>
             <span class="mobile-sub" style="display:none;">
               <span class="mobile-sub-line1">{{- m.year or '' -}}{% if m.genre %} · {{ m.genre }}{% endif %}{% if m.duration %} · {{ m.duration }}{% endif %}</span>
               <span class="mobile-sub-line2">{% if m.imdb %}IMDb ⭐ {{ m.imdb }}{% endif %}{% if m.watched %} · JZ seen {{ m.my_score|int }}/10{% endif %}</span>
@@ -334,7 +337,7 @@
 
   // Title click → expand details row
   document.querySelectorAll('.title-btn').forEach(btn=>{
-    btn.addEventListener('click',()=>{
+    btn.addEventListener('click',()=>{ btn.classList.toggle('open');
       var idx=btn.dataset.idx;
       var row=document.getElementById(`details-${idx}`);
       var open=row.style.display!=='none';
