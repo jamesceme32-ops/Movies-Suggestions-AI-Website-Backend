@@ -1854,14 +1854,21 @@ def _rate_ok(ip, limit=15, window=3600):
 
 def _load_suggestions():
     try:
-        data = r2_storage.load_json("suggestions.json")
+        raw = r2_storage._get("suggestions.json")
+        if not raw:
+            return []
+        data = json.loads(raw)
         return data.get("suggestions", []) if data else []
     except Exception:
         return []
 
 
 def _save_suggestions(suggestions):
-    r2_storage.save_json("suggestions.json", {"suggestions": suggestions})
+    try:
+        body = json.dumps({"suggestions": suggestions}, ensure_ascii=False, default=str)
+        r2_storage._put("suggestions.json", body.encode("utf-8"))
+    except Exception as e:
+        app.logger.error(f"_save_suggestions failed: {e}")
 
 
 @app.route("/suggest-add")
