@@ -691,7 +691,23 @@ def score_and_filter(df, profile, predicted, style,
     taste     = res.apply(taste_match, axis=1)
     pred_norm = (predicted.reindex(res.index).fillna(5.0) - 1) / 9
     res = res.copy()
-    res["Composite Score"]    = (w_imdb*imdb_norm + w_taste*taste + w_pred*pred_norm).round(4)
+    base_score = (w_imdb*imdb_norm + w_taste*taste + w_pred*pred_norm)
+
+    # Boost movies matching MORE of the selected genres to the top
+    if genre_override:
+        g_list = [x.lower().strip() for x in genre_override]
+        def _match_count(row):
+            g1_parts = [p.strip() for p in str(row.get("genre1","")).split("/")]
+            g2_parts = [p.strip() for p in str(row.get("genre2","")).split("/")]
+            all_parts = set(g1_parts + g2_parts)
+            return sum(1 for gx in g_list if gx in all_parts)
+        match_counts = res.apply(_match_count, axis=1)
+        max_matches  = max(match_counts.max(), 1)
+        # Small boost (up to 0.05) for movies matching more genres
+        genre_boost  = (match_counts / max_matches) * 0.05
+        base_score   = base_score + genre_boost
+
+    res["Composite Score"]    = base_score.round(4)
     res["Predicted My Score"] = predicted.reindex(res.index).round(1)
     res["Taste Match %"]      = (taste * 100).round(0).astype(int)
     return res.sort_values("Composite Score", ascending=False).head(top_n)
