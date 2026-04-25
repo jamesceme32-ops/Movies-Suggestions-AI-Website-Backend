@@ -83,6 +83,8 @@
     #results-table td:nth-child(4),
     #results-table th:nth-child(5),
     #results-table td:nth-child(5),
+    #results-table th:nth-child(6),
+    #results-table td:nth-child(6),
     #results-table th:nth-child(7),
     #results-table td:nth-child(7),
     #results-table th:nth-child(8),
@@ -90,10 +92,13 @@
     #results-table th:nth-child(9),
     #results-table td:nth-child(9),
     #results-table th:nth-child(10),
-    #results-table td:nth-child(10) { display: none !important; }
+    #results-table td:nth-child(10),
+    #results-table th:nth-child(11),
+    #results-table td:nth-child(11) { display: none !important; }
     .mobile-sub { display:block !important; font-size:.72rem; color:var(--dim-white); margin-top:3px; }
     .suggest-header { flex-direction: column; gap: 8px; padding: 20px 0 16px; }
     .suggest-title { font-size: 1.3rem; }
+    .mobile-links-row { display: flex !important; }
   }
   .no-results { text-align:center; padding:48px; font-size:.9rem; color:var(--dim-white); }
   .no-results span { font-size:2rem; display:block; margin-bottom:12px; }
@@ -246,8 +251,8 @@
             <button class="title-btn" data-idx="{{ loop.index0 }}">{{ m.title }}</button>
             <span class="mobile-sub" style="display:none;">
               {{- m.year or '' -}}{% if m.genre %} · {{ m.genre }}{% endif %}{% if m.duration %} · {{ m.duration }}{% endif %}
-              {% if m.imdb %} · ⭐{{ m.imdb }}{% endif %}
-              {% if m.watched %} · seen {{ m.my_score }}/10{% endif %}
+              {% if m.imdb %} · IMDb ⭐ {{ m.imdb }}{% endif %}
+              {% if m.watched %} · JZ seen {{ m.my_score|int }}/10{% endif %}
             </span>
           </td>
           <td class="col-year score-dim">{{ m.year or '—' }}</td>
@@ -258,7 +263,7 @@
           <td class="col-num score-dim">{{ m.taste }}%</td>
           <td class="col-num score-gold">{{ m.score }}</td>
           <td class="col-status">
-            {% if m.watched %}<span class="badge badge-watched">seen{% if m.my_score %} · {{ m.my_score }}/10{% endif %}</span>
+            {% if m.watched %}<span class="badge badge-watched">JZ seen{% if m.my_score %} · {{ m.my_score|int }}/10{% endif %}</span>
             {% else %}<span class="badge badge-unwatched">unseen</span>{% endif %}
           </td>
           <td class="col-links">
@@ -275,6 +280,10 @@
               <div><strong>Director</strong><p>{{ m.director or '—' }}</p></div>
               <div><strong>Cast</strong><p>{{ m.cast or m.actors or '—' }}</p></div>
               <div><strong>Language</strong><p>{{ m.language or '—' }}</p></div>
+            </div>
+            <div class="mobile-links-row" style="display:none;margin-top:10px;gap:8px;">
+              {% if m.imdb_url %}<a class="link-imdb" href="{{ m.imdb_url }}" target="_blank">IMDb</a>{% endif %}
+              <a class="link-google" href="{{ m.google_url }}" target="_blank">Google</a>
             </div>
           </td>
         </tr>

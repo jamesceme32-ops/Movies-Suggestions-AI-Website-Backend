@@ -65,14 +65,18 @@
 
   @media (max-width: 768px) {
     /* Top table: 1=rank 2=poster 3=title 4=year 5=genre 6=dur 7=myscore 8=imdb 9=links */
+    /* top table: 1=rank 2=poster 3=title 4=year 5=genre 6=dur 7=myscore 8=imdb 9=links */
     #top-table th:nth-child(4),
     #top-table td:nth-child(4),
     #top-table th:nth-child(5),
     #top-table td:nth-child(5),
     #top-table th:nth-child(6),
     #top-table td:nth-child(6),
-    #top-table th:nth-child(8),  /* imdb on mobile - hide to save space */
-    #top-table td:nth-child(8) { display: none !important; }
+    #top-table th:nth-child(8),
+    #top-table td:nth-child(8),
+    #top-table th:nth-child(9),
+    #top-table td:nth-child(9) { display: none !important; }
+    .mobile-links-row { display: flex !important; }
     /* Show year/genre/dur as sub-text in title cell */
     .mobile-sub { display:block !important; font-size:.72rem; color:var(--dim-white); margin-top:3px; }
     .top-header { flex-direction: column; gap: 10px; padding: 16px 0 14px; }
@@ -170,7 +174,7 @@
             <td class="col-genre">{{ m.genre or '—' }}</td>
             <td class="col-dur score-dim">{{ m.duration or '—' }}</td>
             <td class="col-num">
-              <span class="score-gold" style="font-size:1rem;font-weight:700;">{{ m.my_score }}</span>
+              <span class="score-gold" style="font-size:1rem;font-weight:700;">{{ m.my_score|int if m.my_score else m.my_score }}</span>
               <span class="score-dim" style="font-size:.75rem;">/10</span>
             </td>
             <td class="col-num score-gold">{{ m.imdb or '—' }}</td>
@@ -188,6 +192,10 @@
                 <div><strong>Director</strong><p>{{ m.director or '—' }}</p></div>
                 <div><strong>Cast</strong><p>{{ m.cast or m.actors or '—' }}</p></div>
                 <div><strong>Language</strong><p>{{ m.language or '—' }}</p></div>
+              </div>
+              <div class="mobile-links-row" style="display:none;margin-top:10px;gap:8px;">
+                {% if m.imdb_url %}<a class="link-imdb" href="{{ m.imdb_url }}" target="_blank">IMDb</a>{% endif %}
+                <a class="link-google" href="{{ m.google_url }}" target="_blank">Google</a>
               </div>
             </td>
           </tr>
