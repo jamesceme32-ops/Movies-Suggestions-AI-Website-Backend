@@ -98,10 +98,12 @@
 
   <!-- Success state -->
   <div class="success-box" id="successBox">
-    <div class="icon">🎬</div>
-    <h3>Suggestion Submitted!</h3>
-    <p style="color:var(--dim-white);font-size:.88rem;margin-bottom:24px;">Thanks! JZ will review your suggestion.</p>
-    <button class="btn btn-secondary" onclick="resetForm()">Suggest Another Movie</button>
+    <div style="background:rgba(13,31,60,0.88);border:1px solid var(--panel-border);border-radius:14px;padding:36px 40px;display:inline-block;min-width:300px;">
+      <div class="icon">🎬</div>
+      <h3>Suggestion Submitted!</h3>
+      <p style="color:var(--dim-white);font-size:.88rem;margin-bottom:24px;">Thanks! JZ will review your suggestion.</p>
+      <button class="btn btn-primary" onclick="resetForm()" style="width:100%;justify-content:center;">Suggest Another Movie</button>
+    </div>
   </div>
 </div>
 {% endblock %}
