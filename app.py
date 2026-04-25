@@ -1914,42 +1914,44 @@ def public_movie_details():
 
 @app.route("/public/suggest_movie", methods=["POST"])
 def public_suggest_movie():
-    ip = request.remote_addr or "unknown"
-    if not _rate_ok(ip, limit=5, window=3600):
-        return jsonify({"success": False, "error": "Too many suggestions. Please try again later."})
-    data = request.get_json()
-    # Honeypot check
-    if data.get("hp_website"):
-        return jsonify({"success": True})  # silently accept — bots don't know
-    title = data.get("title", "").strip()
-    if not title:
-        return jsonify({"success": False, "error": "No title provided."})
-    suggestions = _load_suggestions()
-    # Deduplicate by imdb_id
-    imdb_id = data.get("imdb_id", "")
-    if imdb_id and any(s.get("imdb_id") == imdb_id for s in suggestions):
-        return jsonify({"success": True})  # already suggested — silent ok
-    import datetime
-    suggestions.append({
-        "title":        title,
-        "year":         data.get("year", ""),
-        "genre":        data.get("genre", ""),
-        "duration":     data.get("duration", ""),
-        "imdb_rating":  data.get("imdb_rating", ""),
-        "imdb_id":      imdb_id,
-        "imdb_url":     data.get("imdb_url", ""),
-        "google_url":   data.get("google_url", ""),
-        "actors":       data.get("actors", ""),
-        "director":     data.get("director", ""),
-        "plot":         data.get("plot", ""),
-        "poster":       data.get("poster", ""),
-        "suggested_by": data.get("suggested_by", ""),
-        "note":         data.get("note", ""),
-        "timestamp":    datetime.datetime.utcnow().strftime("%b %d, %Y"),
-    })
-    _save_suggestions(suggestions)
-    return jsonify({"success": True})
-
+    try:
+        import datetime
+        ip = request.remote_addr or "unknown"
+        if not _rate_ok(ip, limit=5, window=3600):
+            return jsonify({"success": False, "error": "Too many suggestions. Please try again later."})
+        data = request.get_json(force=True, silent=True) or {}
+        if data.get("hp_website"):
+            return jsonify({"success": True})
+        title = data.get("title", "").strip()
+        if not title:
+            return jsonify({"success": False, "error": "No title provided."})
+        suggestions = _load_suggestions()
+        imdb_id = data.get("imdb_id", "")
+        if imdb_id and any(s.get("imdb_id") == imdb_id for s in suggestions):
+            return jsonify({"success": True})
+        suggestions.append({
+            "title":        title,
+            "year":         data.get("year", ""),
+            "genre":        data.get("genre", ""),
+            "duration":     data.get("duration", ""),
+            "imdb_rating":  data.get("imdb_rating", ""),
+            "imdb_id":      imdb_id,
+            "imdb_url":     data.get("imdb_url", ""),
+            "google_url":   data.get("google_url", ""),
+            "actors":       data.get("actors", ""),
+            "director":     data.get("director", ""),
+            "plot":         data.get("plot", ""),
+            "poster":       data.get("poster", ""),
+            "suggested_by": data.get("suggested_by", ""),
+            "note":         data.get("note", ""),
+            "timestamp":    datetime.datetime.utcnow().strftime("%b %d, %Y"),
+        })
+        _save_suggestions(suggestions)
+        return jsonify({"success": True})
+    except Exception as e:
+        import traceback
+        app.logger.error(f"suggest_movie error: {traceback.format_exc()}")
+        return jsonify({"success": False, "error": str(e)}), 200
 
 @app.route("/api/suggestions")
 @admin_required
