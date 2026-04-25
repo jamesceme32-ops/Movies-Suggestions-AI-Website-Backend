@@ -1932,10 +1932,22 @@ def public_suggest_movie():
         title = data.get("title", "").strip()
         if not title:
             return jsonify({"success": False, "error": "No title provided."})
-        suggestions = _load_suggestions()
         imdb_id = data.get("imdb_id", "")
-        if imdb_id and any(s.get("imdb_id") == imdb_id for s in suggestions):
-            return jsonify({"success": True})
+
+        # Check if already in JZ's movie list
+        db = r2_storage.load_movies_db()
+        movies = db.get("movies", [])
+        for m in movies:
+            mid = _extract_imdb_id(m.get("imdb_url", ""))
+            if (imdb_id and mid == imdb_id) or m.get("title","").lower().strip() == title.lower().strip():
+                return jsonify({"success": False, "error": title + " is already on the list."})
+
+        # Check if already suggested
+        suggestions = _load_suggestions()
+        for s in suggestions:
+            if (imdb_id and s.get("imdb_id") == imdb_id) or s.get("title","").lower().strip() == title.lower().strip():
+                return jsonify({"success": False, "error": title + " has already been suggested."})
+
         suggestions.append({
             "title":        title,
             "year":         data.get("year", ""),
