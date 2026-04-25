@@ -114,7 +114,7 @@ def df_to_movies_list(df):
             "genre":       r.get("Genre", ""),
             "duration":    r.get("Movie Duration", ""),
             "watched":     bool(r.get("Watched", False)),
-            "my_score":    r.get("My Score") if pd.notna(r.get("My Score", None)) else None,
+            "my_score":    int(r.get("My Score")) if pd.notna(r.get("My Score", None)) and r.get("My Score","") != "" else None,
             "imdb_rating": r.get("IMDB Rating") if pd.notna(r.get("IMDB Rating", None)) else None,
             "actors":      r.get("Actors", ""),
             "cast":        r.get("Cast", ""),
@@ -752,7 +752,7 @@ def row_to_dict(r):
         "duration":   r.get("Movie Duration",""),
         "imdb":       r.get("IMDB Rating",""),
         "watched":    r.get("Watched",False),
-        "my_score":   r.get("My Score",""),
+        "my_score":   int(r.get("My Score")) if pd.notna(r.get("My Score",None)) and r.get("My Score","") != "" else "",
         "actors":     r.get("Actors",""),
         "cast":       r.get("Cast",""),
         "language":   r.get("Language",""),
@@ -1238,7 +1238,7 @@ def api_rated_movies():
         yr_int = int(yr) if pd.notna(yr) and yr else None
         movies.append({"key": movie_key(r.get("Title",""), yr_int),
                        "title": r.get("Title",""), "year": yr_int,
-                       "my_score": r.get("My Score"), "genre": r.get("Genre","")})
+                       "my_score": int(r.get("My Score")) if pd.notna(r.get("My Score", None)) else None, "genre": r.get("Genre","")})
     return jsonify({"movies": movies})
 
 
