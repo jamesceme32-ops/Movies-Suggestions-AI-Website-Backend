@@ -12,12 +12,9 @@
   .title-btn { background:none; border:none; color:var(--star-white); font-family:'Inter',sans-serif; font-size:.88rem; font-weight:500; cursor:pointer; text-align:left; padding:0; line-height:1.4; }
   .title-btn:hover { color:var(--cyan); }
   .title-btn .expand-arrow { display:inline-block; font-size:.65rem; color:var(--cyan); opacity:.8; margin-left:5px; transition:transform .2s; vertical-align:middle; background:rgba(64,200,240,.12); border:1px solid rgba(64,200,240,.3); border-radius:3px; padding:1px 5px; font-family:'Inter',sans-serif; }
-  .title-btn.open .expand-arrow { transform:rotate(180deg); }
-  .title-btn:hover { color:var(--cyan); text-decoration:underline; }
-  .title-btn::after { content:' ▾'; font-size:.65rem; color:var(--dim-white); }
-  .title-btn.open::after { content:' ▴'; color:var(--cyan); }
 
-  /* Top 10 row colors */
+  .title-btn:hover { color:var(--cyan); text-decoration:underline; }
+/* Top 10 row colors */
   tr.rank-1 td { background:rgba(240,192,64,.13); border-left:3px solid #f0c040; }
   tr.rank-2 td { background:rgba(192,192,192,.10); border-left:3px solid #c0c0c0; }
   tr.rank-3 td { background:rgba(205,127,50,.12);  border-left:3px solid #cd7f32; }
@@ -125,12 +122,12 @@
         <tr>
           <th style="width:44px;" class="nowrap">#</th>
           <th style="width:50px;"></th>
-          <th class="sortable nowrap" data-col="1">Title <span class="sort-arrow">↕</span></th>
-          <th class="sortable nowrap" data-col="2">Year <span class="sort-arrow">↕</span></th>
-          <th class="sortable nowrap" data-col="3">Genre <span class="sort-arrow">↕</span></th>
-          <th class="sortable nowrap" data-col="4">Duration <span class="sort-arrow">↕</span></th>
-          <th class="sortable" data-col="5">My Score <span class="sort-arrow">↕</span></th>
-          <th class="sortable" data-col="6">IMDb Rating <span class="sort-arrow">↕</span></th>
+          <th class="sortable nowrap" data-col="2">Title <span class="sort-arrow">↕</span></th>
+          <th class="sortable nowrap" data-col="3">Year <span class="sort-arrow">↕</span></th>
+          <th class="sortable nowrap" data-col="4">Genre <span class="sort-arrow">↕</span></th>
+          <th class="sortable nowrap" data-col="5">Duration <span class="sort-arrow">↕</span></th>
+          <th class="sortable" data-col="6">My Score <span class="sort-arrow">↕</span></th>
+          <th class="sortable" data-col="7">IMDb Rating <span class="sort-arrow">↕</span></th>
           <th class="nowrap">Links</th>
         </tr>
       </thead>
@@ -155,7 +152,7 @@
             {% set row_class = "" %}{% set badge_class = "rn" %}
           {% endif %}
 
-          <tr class="result-row {{ row_class }}" id="row-{{ loop.index0 }}">
+          <tr class="result-row {{ row_class }}" id="row-{{ loop.index0 }}" data-title="{{ m.title }}" data-year="{{ m.year or 0 }}" data-genre="{{ m.genre or '' }}" data-dur="{{ m.duration or '' }}" data-score="{{ m.my_score or 0 }}" data-imdb="{{ m.imdb or 0 }}">
             <td style="text-align:center;">
               <span class="rank-badge {{ badge_class }}">
                 {{ m.top10_rank if m.top10_rank else loop.index }}
@@ -348,11 +345,12 @@
   };
 
   document.querySelectorAll('.title-btn').forEach(btn=>{
-    btn.addEventListener('click',()=>{ btn.classList.toggle('open');
+    btn.addEventListener('click',()=>{
       var row=document.getElementById(`details-${btn.dataset.idx}`);
-      var open=row.style.display!=='none';
-      row.style.display=open?'none':'table-row';
-      btn.classList.toggle('open',!open);
+      var isOpen=row.style.display!=='none';
+      row.style.display=isOpen?'none':'table-row';
+      var arrow=btn.querySelector('.expand-arrow');
+      if(arrow) arrow.textContent=isOpen?'▾ details':'▴ details';
     });
   });
   var table=document.getElementById('top-table');
@@ -365,8 +363,10 @@
         th.classList.add('sorted');
         var arr=th.querySelector('.sort-arrow');if(arr)arr.textContent=asc?'↑':'↓';
         var tbody=table.querySelector('tbody');
+        var dataKey = {2:'title',3:'year',4:'genre',5:'dur',6:'score',7:'imdb'}[col] || null;
         Array.from(tbody.querySelectorAll('.result-row')).sort((a,b)=>{
-          var av=a.cells[col]?.textContent.trim()||'',bv=b.cells[col]?.textContent.trim()||'';
+          var av = dataKey ? (a.dataset[dataKey]||'') : (a.cells[col]?.textContent.trim()||'');
+          var bv = dataKey ? (b.dataset[dataKey]||'') : (b.cells[col]?.textContent.trim()||'');
           var an=parseFloat(av),bn=parseFloat(bv);
           if(!isNaN(an)&&!isNaN(bn)) return asc?an-bn:bn-an;
           return asc?av.localeCompare(bv):bv.localeCompare(av);
