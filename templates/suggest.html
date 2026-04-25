@@ -99,6 +99,8 @@
     .suggest-header { flex-direction: column; gap: 8px; padding: 20px 0 16px; }
     .suggest-title { font-size: 1.3rem; }
     .mobile-links-row { display: flex !important; }
+    .mobile-sub-line1 { display: block; }
+    .mobile-sub-line2 { display: block; margin-top: 2px; color: rgba(255,255,255,0.7); }
   }
   .no-results { text-align:center; padding:48px; font-size:.9rem; color:var(--dim-white); }
   .no-results span { font-size:2rem; display:block; margin-bottom:12px; }
@@ -250,9 +252,8 @@
           <td class="col-title">
             <button class="title-btn" data-idx="{{ loop.index0 }}">{{ m.title }}</button>
             <span class="mobile-sub" style="display:none;">
-              {{- m.year or '' -}}{% if m.genre %} · {{ m.genre }}{% endif %}{% if m.duration %} · {{ m.duration }}{% endif %}
-              {% if m.imdb %} · IMDb ⭐ {{ m.imdb }}{% endif %}
-              {% if m.watched %} · JZ seen {{ m.my_score|int }}/10{% endif %}
+              <span class="mobile-sub-line1">{{- m.year or '' -}}{% if m.genre %} · {{ m.genre }}{% endif %}{% if m.duration %} · {{ m.duration }}{% endif %}</span>
+              <span class="mobile-sub-line2">{% if m.imdb %}IMDb ⭐ {{ m.imdb }}{% endif %}{% if m.watched %} · JZ seen {{ m.my_score|int }}/10{% endif %}</span>
             </span>
           </td>
           <td class="col-year score-dim">{{ m.year or '—' }}</td>
