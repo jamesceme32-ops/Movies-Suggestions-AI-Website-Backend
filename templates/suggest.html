@@ -113,6 +113,16 @@
     .mobile-sub-line1 { display: block; }
     .mobile-sub-line2 { display: block; margin-top: 2px; color: rgba(255,255,255,0.7); }
   }
+
+  .streaming-icons { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+  .streaming-badge {
+    display:inline-flex; align-items:center; gap:5px;
+    background:rgba(13,31,60,0.85); border:1px solid var(--panel-border);
+    border-radius:6px; padding:4px 10px; font-size:.75rem; color:var(--star-white);
+    text-decoration:none; transition:border-color .15s;
+  }
+  .streaming-badge:hover { border-color:var(--cyan); color:var(--cyan); }
+  .streaming-badge img { height:14px; width:auto; object-fit:contain; }
   .no-results { text-align:center; padding:48px; font-size:.9rem; color:var(--dim-white); }
   .no-results span { font-size:2rem; display:block; margin-bottom:12px; }
 </style>
@@ -218,6 +228,28 @@
       </div>
       <div id="dur-inputs"></div>
     </div>
+
+    <div class="filter-section">
+      <div class="form-label">Streaming Service <span style="font-weight:400;font-size:.78rem;color:var(--dim-white);">— select any (blank = all)</span></div>
+      <div class="toggle-group" id="streaming-group">
+        {% set services = [
+          ("Netflix","netflix"),("Prime Video","prime"),("Disney+","disney"),
+          ("MAX","max"),("Hulu","hulu"),("Apple TV+","appletv"),
+          ("Paramount+","paramount"),("Peacock Premium","peacock"),
+          ("Showtime","showtime"),("Starz","starz"),("MGM+","mgm"),
+          ("YouTube","youtube"),("Crunchyroll","crunchyroll")
+        ] %}
+        {% set sel_s = form.getlist('streaming') %}
+        {% for name, val in services %}
+        <button type="button" class="toggle-btn {% if val in sel_s %}active{% endif %}"
+          data-val="{{ val }}">{{ name }}</button>
+        {% endfor %}
+      </div>
+      <div id="streaming-inputs"></div>
+      <p style="font-size:.72rem;color:var(--dim-white);margin-top:8px;opacity:.8;">
+        ℹ️ Streaming availability is fetched live and cached. First load per movie may take a moment.
+      </p>
+    </div>
     <div class="filter-section" style="max-width:380px;">
       <label class="form-label">Actor / Director Filter</label>
       <input type="text" name="actor" placeholder="e.g. Tom Hanks, Steven Spielberg, Johansson, etc." value="{{ form.actor or '' }}">
@@ -265,7 +297,7 @@
       </thead>
       <tbody>
         {% for m in results %}
-        <tr class="result-row" id="row-{{ loop.index0 }}">
+        <tr class="result-row" id="row-{{ loop.index0 }}" data-imdbid="{{ m.imdb_id or '' }}">
           <td style="padding:6px 8px;width:50px;vertical-align:middle;">
             {% if m.poster_url %}
             <img class="poster-thumb" src="{{ m.poster_url }}" alt="{{ m.title }}"
@@ -285,7 +317,7 @@
           <td class="col-genre">{{ m.genre or '—' }}</td>
           <td class="col-dur score-dim">{{ m.duration or '—' }}</td>
           <td class="col-num score-gold">{{ m.imdb or '—' }}</td>
-          <td class="col-num score-cyan">{{ m.predicted or '—' }}</td>
+          <td class="col-num score-cyan">{% if m.predicted %}{{ m.predicted }}<span style="font-size:.72rem;color:var(--dim-white);">/10</span>{% else %}—{% endif %}</td>
           <td class="col-num score-dim">{{ m.taste }}%</td>
           <td class="col-num score-gold">{{ m.score }}</td>
           <td class="col-status">
@@ -307,6 +339,11 @@
               <div><strong>Cast</strong><p>{{ m.cast or m.actors or '—' }}</p></div>
               <div><strong>Language</strong><p>{{ m.language or '—' }}</p></div>
             </div>
+            {% if m.imdb_id %}
+            <div class="streaming-icons" id="streaming-{{ loop.index0 }}" style="margin-top:10px;">
+              <span style="font-size:.72rem;color:var(--dim-white);">Loading streaming...</span>
+            </div>
+            {% endif %}
             <div class="mobile-links-row" style="display:none;margin-top:10px;gap:8px;">
               {% if m.imdb_url %}<a class="link-imdb" href="{{ m.imdb_url }}" target="_blank">IMDb</a>{% endif %}
               <a class="link-google" href="{{ m.google_url }}" target="_blank">Google</a>
@@ -375,6 +412,7 @@
   multi('genre-group','genre-inputs','genre');
   multi('era-group','era-inputs','era');
   multi('dur-group','dur-inputs','dur');
+  multi('streaming-group','streaming-inputs','streaming');
 
   document.getElementById('clear-btn').addEventListener('click',()=>{
     document.querySelectorAll('#style-tabs .toggle-btn').forEach(b=>{b.classList.remove('active','active-gold');if(b.dataset.val==='Balanced')b.classList.add('active-gold');});
@@ -387,6 +425,45 @@
   });
 
   // Title click → expand details row
+
+  var _streamingLogos = {
+    "Netflix":"https://img.icons8.com/color/24/netflix.png",
+    "Prime Video":"https://img.icons8.com/color/24/amazon-prime-video.png",
+    "Disney+":"https://img.icons8.com/color/24/disney-plus.png",
+    "MAX":"https://img.icons8.com/color/24/max.png",
+    "Hulu":"https://img.icons8.com/color/24/hulu.png",
+    "Apple TV+":"https://img.icons8.com/color/24/apple-tv-plus.png",
+    "Paramount+":"https://img.icons8.com/color/24/paramount-plus.png",
+    "Peacock Premium":"https://img.icons8.com/color/24/peacock.png",
+    "Showtime":"https://img.icons8.com/color/24/showtime.png",
+    "Starz":"https://img.icons8.com/color/24/starz.png",
+    "MGM+":"https://img.icons8.com/color/24/mgm.png",
+    "YouTube":"https://img.icons8.com/color/24/youtube-play.png",
+    "Crunchyroll":"https://img.icons8.com/color/24/crunchyroll.png",
+  };
+
+  async function loadStreaming(imdbId, el) {
+    if(!imdbId || !el) return;
+    try {
+      var res  = await fetch('/api/streaming/'+imdbId);
+      var data = await res.json();
+      if(!data.sources || data.sources.length===0){
+        el.innerHTML='<span style="font-size:.72rem;color:var(--dim-white);">Not available on major streaming services</span>';
+        return;
+      }
+      el.innerHTML = '<span style="font-size:.72rem;color:var(--dim-white);margin-right:6px;align-self:center;">Stream on:</span>' +
+        data.sources.map(s=>{
+          var logo = _streamingLogos[s.name] || '';
+          var url  = s.web_url || '#';
+          return '<a class="streaming-badge" href="'+url+'" target="_blank">' +
+            (logo ? '<img src="'+logo+'" alt="'+s.name+'">' : '') +
+            s.name + '</a>';
+        }).join('');
+    } catch(e) {
+      el.innerHTML='<span style="font-size:.72rem;color:var(--dim-white);">Could not load streaming info</span>';
+    }
+  }
+
   document.querySelectorAll('.title-btn').forEach(btn=>{
     btn.addEventListener('click',()=>{
       var idx=btn.dataset.idx;
