@@ -261,6 +261,21 @@
       <div id="refreshErr"  style="display:none;margin-top:16px;" class="alert-error"></div>
 
       <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--panel-border);">
+        <div class="panel-title" style="font-size:.72rem;">STREAMING AVAILABILITY (WATCHMODE)</div>
+        <p style="font-size:.82rem;color:var(--dim-white);margin-bottom:8px;">
+          Pre-fetches streaming availability for all movies from Watchmode. Required for the streaming filter to work.
+          Results cached 30 days — skips already-cached movies.
+        </p>
+        <div id="streaming-status-line" style="font-size:.78rem;color:var(--dim-white);margin-bottom:10px;">
+          <button class="btn btn-secondary btn-sm" onclick="checkStreamingStatus()" style="font-size:.72rem;">Check Status</button>
+        </div>
+        <button class="btn btn-secondary btn-sm" id="streamingRefreshBtn" onclick="startStreamingRefresh()">
+          📡 Refresh Streaming Cache
+        </button>
+        <div id="streamingRefreshResult" style="display:none;margin-top:10px;font-size:.82rem;color:var(--star-white);"></div>
+      </div>
+
+      <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--panel-border);">
         <div class="panel-title" style="font-size:.72rem;">FORCE FIX KNOWN PROBLEMATIC MOVIES</div>
         <p style="font-size:.82rem;color:var(--dim-white);margin-bottom:12px;">
           Directly fetches 9 stubborn movies by their known IMDb ID (bypasses search entirely).
@@ -830,6 +845,48 @@
       out.style.color = '#fca5a5';
     }
     btn.disabled = false; btn.textContent = '🔧 Force Fix Remaining';
+  };
+
+
+  window.checkStreamingStatus = async function() {
+    var el = document.getElementById('streaming-status-line');
+    el.textContent = 'Checking...';
+    try {
+      var res  = await fetch('/admin/refresh-streaming/status', { credentials: 'same-origin' });
+      var data = await res.json();
+      el.innerHTML = 'Key: ' + (data.watchmode_key_set ? '✅ Set' : '❌ Not set in Railway env vars') +
+        ' &nbsp;|&nbsp; Cached: <strong style="color:var(--gold);">' + data.cached + '</strong> / ' + data.total_movies +
+        ' movies &nbsp;|&nbsp; Missing: <strong style="color:' + (data.uncached > 0 ? '#fca5a5' : 'var(--cyan)') + ';">' + data.uncached + '</strong>' +
+        ' &nbsp;<button class="btn btn-secondary btn-sm" onclick="checkStreamingStatus()" style="font-size:.7rem;">↻</button>';
+    } catch(e) {
+      el.textContent = 'Error: ' + e.message;
+    }
+  };
+
+  window.startStreamingRefresh = async function() {
+    var btn = document.getElementById('streamingRefreshBtn');
+    var out = document.getElementById('streamingRefreshResult');
+    btn.disabled = true; btn.textContent = '⏳ Refreshing... (this may take a few minutes)';
+    out.style.display = 'block';
+    out.textContent = 'Calling Watchmode API for all movies... please wait.';
+    out.style.color = 'var(--dim-white)';
+    try {
+      var res  = await fetch('/admin/refresh-streaming', { method: 'POST', credentials: 'same-origin' });
+      var data = await res.json();
+      if (data.error) {
+        out.textContent = '❌ ' + data.error;
+        out.style.color = '#fca5a5';
+      } else {
+        out.innerHTML = '✅ Done! &nbsp; Fetched: <strong>' + data.filled + '</strong> &nbsp; Skipped (already cached): <strong>' + data.skipped + '</strong>' +
+          (data.errors ? ' &nbsp; Errors: <strong style="color:#fca5a5;">' + data.errors + '</strong>' : '') +
+          '<br><span style="font-size:.75rem;color:var(--dim-white);">' + (data.note || '') + '</span>';
+        out.style.color = 'var(--star-white)';
+      }
+    } catch(e) {
+      out.textContent = '❌ Error: ' + e.message;
+      out.style.color = '#fca5a5';
+    }
+    btn.disabled = false; btn.textContent = '📡 Refresh Streaming Cache';
   };
 
   function pollRefresh() {
