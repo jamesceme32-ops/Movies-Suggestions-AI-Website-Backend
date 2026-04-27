@@ -655,7 +655,7 @@ def predict_scores(df, model, scaler, feat_cols):
 # ══════════════════════════════════════════════
 
 def score_and_filter(df, profile, predicted, style,
-                     genre_override=None, era_override=None,
+                     genre_override=None, genre_match="any", era_override=None,
                      dur_override=None, person_filter=None,
                      watched_filter="Both", top_n=100):
     res = df.copy()
@@ -664,11 +664,15 @@ def score_and_filter(df, profile, predicted, style,
     if genre_override:
         g = [x.lower().strip() for x in genre_override]
         def _genre_match(row):
-            # Split stored genres by "/" to catch any that weren't split properly
             g1_parts = [p.strip() for p in str(row.get("genre1","")).split("/")]
             g2_parts = [p.strip() for p in str(row.get("genre2","")).split("/")]
-            all_parts = g1_parts + g2_parts
-            return any(gx in all_parts for gx in g)
+            all_parts = set(g1_parts + g2_parts)
+            if genre_match == "all":
+                # Movie must have ALL selected genres
+                return all(gx in all_parts for gx in g)
+            else:
+                # Movie must have ANY selected genre
+                return any(gx in all_parts for gx in g)
         res = res[res.apply(_genre_match, axis=1)]
     if era_override:   res = res[res["Year Range"].isin(era_override)]
     if dur_override:   res = res[res["Duration Range"].isin(dur_override)]
@@ -836,6 +840,7 @@ def suggest():
             res = score_and_filter(df, profile, predicted,
                                    request.form.get("style","Balanced"),
                                    genre_override=request.form.getlist("genre") or None,
+                          genre_match=request.form.get("genre_match","any"),
                                    era_override=request.form.getlist("era") or None,
                                    dur_override=request.form.getlist("dur") or None,
                                    person_filter=request.form.get("actor","").strip() or None,
