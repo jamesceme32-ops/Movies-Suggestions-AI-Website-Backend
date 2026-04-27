@@ -33,7 +33,53 @@ def internal_error(e):
 
 
 OMDB_API_KEY   = os.environ.get("OMDB_API_KEY", "")
-TMDB_API_KEY   = os.environ.get("TMDB_API_KEY", "")
+TMDB_API_KEY      = os.environ.get("TMDB_API_KEY", "")
+WATCHMODE_API_KEY = os.environ.get("WATCHMODE_API_KEY", "")
+
+_STREAMING_SOURCES = {
+    "Netflix": 203, "Prime Video": 26, "Disney+": 372, "MAX": 1825,
+    "Hulu": 157, "Apple TV+": 371, "Paramount+": 444, "Peacock Premium": 322,
+    "Showtime": 43, "Starz": 191, "MGM+": 529, "YouTube": 248, "Crunchyroll": 238,
+}
+
+def get_streaming_availability(imdb_id):
+    if not WATCHMODE_API_KEY or not imdb_id:
+        return []
+    cache_key = f"streaming_cache/{imdb_id}.json"
+    try:
+        cached = r2_storage._get(cache_key)
+        if cached:
+            data = json.loads(cached)
+            import datetime as _dt
+            cached_at = data.get("cached_at","")
+            if cached_at:
+                age = (_dt.datetime.utcnow() - _dt.datetime.fromisoformat(cached_at)).days
+                if age < 30:
+                    return data.get("sources", [])
+    except Exception:
+        pass
+    try:
+        r = requests.get(
+            f"https://api.watchmode.com/v1/title/imdb:{imdb_id}/sources/",
+            params={"apiKey": WATCHMODE_API_KEY}, timeout=8)
+        if not r.ok:
+            return []
+        seen = set(); sources = []
+        target_ids = set(_STREAMING_SOURCES.values())
+        for s in r.json():
+            sid = s.get("source_id")
+            if sid not in target_ids or s.get("type") != "sub" or sid in seen:
+                continue
+            seen.add(sid)
+            name = next((k for k,v in _STREAMING_SOURCES.items() if v==sid),"")
+            if name:
+                sources.append({"name": name, "web_url": s.get("web_url","")})
+        import datetime as _dt
+        body = json.dumps({"sources": sources, "cached_at": _dt.datetime.utcnow().isoformat()})
+        r2_storage._put(cache_key, body.encode())
+        return sources
+    except Exception:
+        return []
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "cinematch")
 
 STORE      = {}
@@ -712,7 +758,7 @@ def score_and_filter(df, profile, predicted, style,
         base_score   = base_score + genre_boost
 
     res["Composite Score"]    = base_score.round(4)
-    res["Predicted My Score"] = predicted.reindex(res.index).round(1)
+    res["Predicted My Score"] = predicted.reindex(res.index).round(0).astype("Int64")
     res["Taste Match %"]      = (taste * 100).round(0).astype(int)
     return res.sort_values("Composite Score", ascending=False).head(top_n)
 
@@ -1496,6 +1542,18 @@ _KNOWN_IMDB_IDS = {
     "a fistful of dynamite||1972":       "tt0067385",
 }
 
+
+@app.route("/api/streaming/<imdb_id>")
+def api_streaming(imdb_id):
+    """Get streaming availability for a movie by IMDb ID."""
+    sources = get_streaming_availability(imdb_id)
+    return jsonify({"sources": sources})
+
+
+@app.route("/api/streaming/<imdb_id>")
+def api_streaming(imdb_id):
+    sources = get_streaming_availability(imdb_id)
+    return jsonify({"sources": sources})
 
 @app.route("/admin/bias-debug")
 @admin_required
