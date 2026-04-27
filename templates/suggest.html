@@ -40,6 +40,17 @@
     border-top-color:#111827;
   }
   .style-tooltip-wrap:hover .style-tooltip { visibility:visible; opacity:1; }
+
+  #genre-match-btn.active {
+    background: rgba(64,200,240,.14);
+    border-color: var(--cyan);
+    color: var(--cyan);
+  }
+  #genre-match-btn.locked {
+    border-color: #fca5a5;
+    color: #fca5a5;
+    background: rgba(252,165,165,.08);
+  }
   .filter-section { margin-bottom:20px; }
 
   /* Table */
@@ -172,6 +183,20 @@
         {% endfor %}
       </div>
       <div id="genre-inputs"></div>
+      <!-- Require All Genres toggle -->
+      <div id="genre-match-row" style="display:none;margin-top:10px;align-items:center;gap:10px;flex-wrap:wrap;">
+        <button type="button" id="genre-match-btn" class="toggle-btn" onclick="toggleGenreMatch()"
+          style="font-size:.78rem;padding:5px 14px;">
+          🔀 Match Any Genre
+        </button>
+        <span id="genre-match-hint" style="font-size:.76rem;color:var(--dim-white);">
+          Showing movies with <strong>any</strong> selected genre
+        </span>
+        <span id="genre-match-error" style="display:none;font-size:.76rem;color:#fca5a5;">
+          🔒 Exact match only works with 1 or 2 genres
+        </span>
+      </div>
+      <input type="hidden" name="genre_match" id="genre-match-input" value="any">
     </div>
     <div class="filter-section">
       <div class="form-label">Era <span style="font-weight:400;font-size:.78rem;color:var(--dim-white);">— select any (blank = auto)</span></div>
@@ -312,10 +337,47 @@
   single('style-tabs','style-input','active-gold');
   single('watched-tabs','watched-input','active');
 
+  function updateGenreMatchRow() {
+    var selected = document.querySelectorAll('#genre-group .toggle-btn.active').length;
+    var row  = document.getElementById('genre-match-row');
+    var btn  = document.getElementById('genre-match-btn');
+    var err  = document.getElementById('genre-match-error');
+    var hint = document.getElementById('genre-match-hint');
+    var inp  = document.getElementById('genre-match-input');
+    if (!row) return;
+    row.style.display = selected >= 2 ? 'flex' : 'none';
+    if (selected > 2) {
+      btn.classList.add('locked'); btn.classList.remove('active');
+      btn.textContent = '🔒 Too Many Genres (max 2)';
+      err.style.display = 'inline'; hint.style.display = 'none';
+      inp.value = 'any';
+    } else {
+      btn.classList.remove('locked');
+      err.style.display = 'none'; hint.style.display = 'inline';
+      if (!btn.classList.contains('active')) {
+        btn.textContent = '🔀 Match Any Genre'; inp.value = 'any';
+      }
+    }
+  }
+  window.toggleGenreMatch = function() {
+    var selected = document.querySelectorAll('#genre-group .toggle-btn.active').length;
+    if (selected > 2) return;
+    var btn = document.getElementById('genre-match-btn');
+    var inp = document.getElementById('genre-match-input');
+    var hint = document.getElementById('genre-match-hint');
+    var isExact = inp.value === 'all';
+    inp.value = isExact ? 'any' : 'all';
+    btn.classList.toggle('active', !isExact);
+    btn.textContent = isExact ? '🔀 Match Any Genre' : '🎯 Exact Genre Match';
+    hint.innerHTML  = isExact
+      ? 'Showing movies with <strong>any</strong> selected genre'
+      : 'Showing movies with <strong>all</strong> selected genres';
+  };
+
   function multi(gId,cId,name){
     var c=document.getElementById(cId);
     var sync=()=>{c.innerHTML='';document.querySelectorAll(`#${gId} .toggle-btn.active`).forEach(b=>{const i=document.createElement('input');i.type='hidden';i.name=name;i.value=b.dataset.val;c.appendChild(i);});};
-    document.querySelectorAll(`#${gId} .toggle-btn`).forEach(b=>{b.addEventListener('click',()=>{b.classList.toggle('active');sync();});});
+    document.querySelectorAll(`#${gId} .toggle-btn`).forEach(b=>{b.addEventListener('click',()=>{b.classList.toggle('active');sync();if(gId==='genre-group')updateGenreMatchRow();});});
     sync();
   }
   multi('genre-group','genre-inputs','genre');
