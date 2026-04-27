@@ -702,7 +702,7 @@ def predict_scores(df, model, scaler, feat_cols):
 
 def score_and_filter(df, profile, predicted, style,
                      genre_override=None, genre_match="any", era_override=None,
-                     dur_override=None, person_filter=None,
+                     dur_override=None, person_filter=None, streaming_override=None,
                      watched_filter="Both", top_n=100):
     res = df.copy()
     if watched_filter == "Unwatched only": res = res[~res["Watched"]]
@@ -742,6 +742,21 @@ def score_and_filter(df, profile, predicted, style,
     pred_norm = (predicted.reindex(res.index).fillna(5.0) - 1) / 9
     res = res.copy()
     base_score = (w_imdb*imdb_norm + w_taste*taste + w_pred*pred_norm)
+
+    # Streaming filter — uses pre-cached Watchmode data in R2
+    if streaming_override:
+        allowed = {s.lower() for s in streaming_override}
+        def _has_service(row):
+            imdb_id = _extract_imdb_id(row.get("IMDB URL",""))
+            if not imdb_id: return False
+            try:
+                cached = r2_storage._get(f"streaming_cache/{imdb_id}.json")
+                if not cached: return False
+                sources = json.loads(cached).get("sources", [])
+                return any(s["name"].lower() in allowed for s in sources)
+            except Exception:
+                return False
+        res = res[res.apply(_has_service, axis=1)]
 
     # Boost movies matching MORE of the selected genres to the top
     if genre_override:
@@ -811,6 +826,7 @@ def row_to_dict(r):
         "poster_url": r.get("Poster URL",""),
         "imdb_url":   r.get("IMDB URL",""),
         "google_url": r.get("Google URL",""),
+        "imdb_id":    _extract_imdb_id(r.get("IMDB URL","")),
     }
 
 
@@ -887,6 +903,7 @@ def suggest():
                                    request.form.get("style","Balanced"),
                                    genre_override=request.form.getlist("genre") or None,
                           genre_match=request.form.get("genre_match","any"),
+                          streaming_override=request.form.getlist("streaming") or None,
                                    era_override=request.form.getlist("era") or None,
                                    dur_override=request.form.getlist("dur") or None,
                                    person_filter=request.form.get("actor","").strip() or None,
@@ -1550,6 +1567,67 @@ def api_streaming(imdb_id):
     return jsonify({"sources": sources})
 
 
+
+
+@app.route("/admin/refresh-streaming", methods=["POST"])
+@admin_required
+def admin_refresh_streaming():
+    """Pre-cache streaming availability for all movies from Watchmode."""
+    if not WATCHMODE_API_KEY:
+        return jsonify({"error": "WATCHMODE_API_KEY not set in environment variables."})
+    db     = r2_storage.load_movies_db()
+    movies = db.get("movies", [])
+    filled = 0; skipped = 0; errors = 0
+    for m in movies:
+        imdb_id = _extract_imdb_id(m.get("imdb_url",""))
+        if not imdb_id:
+            skipped += 1
+            continue
+        # Check if already freshly cached
+        try:
+            cached = r2_storage._get(f"streaming_cache/{imdb_id}.json")
+            if cached:
+                import datetime as _dt
+                data = json.loads(cached)
+                cached_at = data.get("cached_at","")
+                if cached_at:
+                    age = (_dt.datetime.utcnow() - _dt.datetime.fromisoformat(cached_at)).days
+                    if age < 30:
+                        skipped += 1
+                        continue
+        except Exception:
+            pass
+        sources = get_streaming_availability(imdb_id)
+        if sources is not None:
+            filled += 1
+        else:
+            errors += 1
+        import time; time.sleep(0.25)  # be nice to the API
+    return jsonify({"filled": filled, "skipped": skipped, "errors": errors,
+                    "total": len(movies),
+                    "note": "Movies already cached within 30 days were skipped."})
+
+@app.route("/admin/refresh-streaming/status")
+@admin_required
+def admin_streaming_status():
+    """Check how many movies have streaming data cached."""
+    db     = r2_storage.load_movies_db()
+    movies = db.get("movies", [])
+    cached_count = 0
+    for m in movies:
+        imdb_id = _extract_imdb_id(m.get("imdb_url",""))
+        if not imdb_id: continue
+        try:
+            raw = r2_storage._get(f"streaming_cache/{imdb_id}.json")
+            if raw: cached_count += 1
+        except Exception:
+            pass
+    return jsonify({
+        "total_movies": len(movies),
+        "cached": cached_count,
+        "uncached": len(movies) - cached_count,
+        "watchmode_key_set": bool(WATCHMODE_API_KEY),
+    })
 
 
 @app.route("/admin/bias-debug")
