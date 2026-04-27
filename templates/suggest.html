@@ -184,13 +184,13 @@
       </div>
       <div id="genre-inputs"></div>
       <!-- Require All Genres toggle -->
-      <div id="genre-match-row" style="display:none;margin-top:10px;align-items:center;gap:10px;flex-wrap:wrap;">
+      <div id="genre-match-row" style="display:flex;margin-top:10px;align-items:center;gap:10px;flex-wrap:wrap;">
         <button type="button" id="genre-match-btn" class="toggle-btn" onclick="toggleGenreMatch()"
           style="font-size:.78rem;padding:5px 14px;">
-          🔀 Match Any Genre
+          🎯 Exact Genre Match
         </button>
         <span id="genre-match-hint" style="font-size:.76rem;color:var(--dim-white);">
-          Showing movies with <strong>any</strong> selected genre
+          Use this when you want to see movies with only the 2 genre combination chosen.
         </span>
         <span id="genre-match-error" style="display:none;font-size:.76rem;color:#fca5a5;">
           🔒 Exact match only works with 1 or 2 genres
@@ -339,24 +339,20 @@
 
   function updateGenreMatchRow() {
     var selected = document.querySelectorAll('#genre-group .toggle-btn.active').length;
-    var row  = document.getElementById('genre-match-row');
     var btn  = document.getElementById('genre-match-btn');
     var err  = document.getElementById('genre-match-error');
     var hint = document.getElementById('genre-match-hint');
     var inp  = document.getElementById('genre-match-input');
-    if (!row) return;
-    row.style.display = selected >= 2 ? 'flex' : 'none';
+    if (!btn) return;
     if (selected > 2) {
       btn.classList.add('locked'); btn.classList.remove('active');
-      btn.textContent = '🔒 Too Many Genres (max 2)';
+      btn.textContent = '🔒 Exact Genre Match';
       err.style.display = 'inline'; hint.style.display = 'none';
       inp.value = 'any';
     } else {
       btn.classList.remove('locked');
       err.style.display = 'none'; hint.style.display = 'inline';
-      if (!btn.classList.contains('active')) {
-        btn.textContent = '🔀 Match Any Genre'; inp.value = 'any';
-      }
+      btn.textContent = '🎯 Exact Genre Match';
     }
   }
   window.toggleGenreMatch = function() {
@@ -364,14 +360,10 @@
     if (selected > 2) return;
     var btn = document.getElementById('genre-match-btn');
     var inp = document.getElementById('genre-match-input');
-    var hint = document.getElementById('genre-match-hint');
     var isExact = inp.value === 'all';
     inp.value = isExact ? 'any' : 'all';
     btn.classList.toggle('active', !isExact);
-    btn.textContent = isExact ? '🔀 Match Any Genre' : '🎯 Exact Genre Match';
-    hint.innerHTML  = isExact
-      ? 'Showing movies with <strong>any</strong> selected genre'
-      : 'Showing movies with <strong>all</strong> selected genres';
+    btn.textContent = '🎯 Exact Genre Match';
   };
 
   function multi(gId,cId,name){
