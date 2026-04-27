@@ -1550,10 +1550,7 @@ def api_streaming(imdb_id):
     return jsonify({"sources": sources})
 
 
-@app.route("/api/streaming/<imdb_id>")
-def api_streaming(imdb_id):
-    sources = get_streaming_availability(imdb_id)
-    return jsonify({"sources": sources})
+
 
 @app.route("/admin/bias-debug")
 @admin_required
