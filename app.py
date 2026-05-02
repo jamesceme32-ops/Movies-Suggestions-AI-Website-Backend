@@ -1569,48 +1569,77 @@ def api_streaming(imdb_id):
 
 
 
+# ── Streaming refresh (background thread) ─────────────────────────────────
+STREAMING_REFRESH_STATUS = {
+    "running": False, "done": 0, "total": 0,
+    "fetched": 0, "skipped": 0, "errors": 0,
+    "complete": False, "error": ""
+}
+
+def _streaming_refresh_background():
+    global STREAMING_REFRESH_STATUS
+    import time, datetime as _dt
+    try:
+        db     = r2_storage.load_movies_db()
+        movies = db.get("movies", [])
+        # Only movies with an IMDb ID
+        to_fetch = [m for m in movies if _extract_imdb_id(m.get("imdb_url",""))]
+        STREAMING_REFRESH_STATUS.update({
+            "running": True, "done": 0, "total": len(to_fetch),
+            "fetched": 0, "skipped": 0, "errors": 0,
+            "complete": False, "error": ""
+        })
+        for i, m in enumerate(to_fetch):
+            imdb_id = _extract_imdb_id(m.get("imdb_url",""))
+            # Check if freshly cached
+            skip = False
+            try:
+                cached = r2_storage._get(f"streaming_cache/{imdb_id}.json")
+                if cached:
+                    data = json.loads(cached)
+                    cached_at = data.get("cached_at","")
+                    if cached_at:
+                        age = (_dt.datetime.utcnow() - _dt.datetime.fromisoformat(cached_at)).days
+                        if age < 30:
+                            skip = True
+            except Exception:
+                pass
+            if skip:
+                STREAMING_REFRESH_STATUS["skipped"] += 1
+            else:
+                try:
+                    sources = get_streaming_availability(imdb_id)
+                    STREAMING_REFRESH_STATUS["fetched"] += 1
+                except Exception:
+                    STREAMING_REFRESH_STATUS["errors"] += 1
+                time.sleep(0.25)  # ~4 calls/sec — well within rate limits
+            STREAMING_REFRESH_STATUS["done"] = i + 1
+        STREAMING_REFRESH_STATUS.update({"running": False, "complete": True})
+    except Exception as e:
+        STREAMING_REFRESH_STATUS.update({"running": False, "complete": True, "error": str(e)})
+
+
 @app.route("/admin/refresh-streaming", methods=["POST"])
 @admin_required
 def admin_refresh_streaming():
-    """Pre-cache streaming availability for all movies from Watchmode."""
     if not WATCHMODE_API_KEY:
-        return jsonify({"error": "WATCHMODE_API_KEY not set in environment variables."})
-    db     = r2_storage.load_movies_db()
-    movies = db.get("movies", [])
-    filled = 0; skipped = 0; errors = 0
-    for m in movies:
-        imdb_id = _extract_imdb_id(m.get("imdb_url",""))
-        if not imdb_id:
-            skipped += 1
-            continue
-        # Check if already freshly cached
-        try:
-            cached = r2_storage._get(f"streaming_cache/{imdb_id}.json")
-            if cached:
-                import datetime as _dt
-                data = json.loads(cached)
-                cached_at = data.get("cached_at","")
-                if cached_at:
-                    age = (_dt.datetime.utcnow() - _dt.datetime.fromisoformat(cached_at)).days
-                    if age < 30:
-                        skipped += 1
-                        continue
-        except Exception:
-            pass
-        sources = get_streaming_availability(imdb_id)
-        if sources is not None:
-            filled += 1
-        else:
-            errors += 1
-        import time; time.sleep(0.25)  # be nice to the API
-    return jsonify({"filled": filled, "skipped": skipped, "errors": errors,
-                    "total": len(movies),
-                    "note": "Movies already cached within 30 days were skipped."})
+        return jsonify({"error": "WATCHMODE_API_KEY not set in Railway environment variables."})
+    if STREAMING_REFRESH_STATUS.get("running"):
+        return jsonify({"error": "Refresh already running."})
+    import threading
+    threading.Thread(target=_streaming_refresh_background, daemon=True).start()
+    return jsonify({"ok": True})
+
+
+@app.route("/admin/refresh-streaming/progress")
+@admin_required
+def admin_streaming_progress():
+    return jsonify(STREAMING_REFRESH_STATUS)
+
 
 @app.route("/admin/refresh-streaming/status")
 @admin_required
 def admin_streaming_status():
-    """Check how many movies have streaming data cached."""
     db     = r2_storage.load_movies_db()
     movies = db.get("movies", [])
     cached_count = 0
