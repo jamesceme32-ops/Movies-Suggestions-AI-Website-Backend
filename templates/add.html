@@ -850,43 +850,72 @@
 
   window.checkStreamingStatus = async function() {
     var el = document.getElementById('streaming-status-line');
-    el.textContent = 'Checking...';
+    el.innerHTML = 'Checking... <span style="color:var(--dim-white)">↻</span>';
     try {
       var res  = await fetch('/admin/refresh-streaming/status', { credentials: 'same-origin' });
       var data = await res.json();
-      el.innerHTML = 'Key: ' + (data.watchmode_key_set ? '✅ Set' : '❌ Not set in Railway env vars') +
+      var pct  = data.total_movies ? Math.round(data.cached / data.total_movies * 100) : 0;
+      el.innerHTML =
+        'Key: ' + (data.watchmode_key_set ? '✅ Set' : '❌ Missing — add WATCHMODE_API_KEY in Railway') +
         ' &nbsp;|&nbsp; Cached: <strong style="color:var(--gold);">' + data.cached + '</strong> / ' + data.total_movies +
-        ' movies &nbsp;|&nbsp; Missing: <strong style="color:' + (data.uncached > 0 ? '#fca5a5' : 'var(--cyan)') + ';">' + data.uncached + '</strong>' +
-        ' &nbsp;<button class="btn btn-secondary btn-sm" onclick="checkStreamingStatus()" style="font-size:.7rem;">↻</button>';
+        ' (' + pct + '%)' +
+        ' &nbsp;|&nbsp; Not cached: <strong style="color:' + (data.uncached > 0 ? '#fca5a5' : 'var(--cyan)') + ';">' + data.uncached + '</strong>' +
+        ' &nbsp;<button onclick="checkStreamingStatus()" class="btn btn-secondary btn-sm" style="font-size:.7rem;padding:2px 8px;">↻</button>';
     } catch(e) {
       el.textContent = 'Error: ' + e.message;
     }
   };
 
+  var _streamingPollTimer = null;
+
+  function pollStreamingProgress() {
+    fetch('/admin/refresh-streaming/progress', { credentials: 'same-origin' })
+      .then(r => r.json()).then(d => {
+        var out  = document.getElementById('streamingRefreshResult');
+        var bar  = document.getElementById('streaming-progress-bar');
+        var btn  = document.getElementById('streamingRefreshBtn');
+        var pct  = d.total > 0 ? Math.round(d.done / d.total * 100) : 0;
+        if (bar) bar.style.width = pct + '%';
+        out.innerHTML =
+          '<div style="background:rgba(13,31,60,0.8);border-radius:8px;height:10px;margin-bottom:10px;overflow:hidden;">' +
+          '<div id="streaming-progress-bar" style="height:100%;width:' + pct + '%;background:linear-gradient(90deg,var(--cyan-dim),var(--cyan));transition:width .3s;border-radius:8px;"></div></div>' +
+          '<span style="font-size:.82rem;">' + d.done + ' / ' + d.total + ' movies (' + pct + '%) — ' +
+          'Fetched: <strong style="color:var(--cyan);">' + d.fetched + '</strong> &nbsp; ' +
+          'Skipped (cached): <strong style="color:var(--dim-white);">' + d.skipped + '</strong>' +
+          (d.errors ? ' &nbsp; Errors: <strong style="color:#fca5a5;">' + d.errors + '</strong>' : '') +
+          '</span>';
+        if (d.complete || (!d.running && d.done > 0)) {
+          clearInterval(_streamingPollTimer);
+          btn.disabled = false; btn.textContent = '📡 Refresh Streaming Cache';
+          var summary = d.error
+            ? '<br>❌ Error: ' + d.error
+            : '<br>✅ Complete! Fetched: ' + d.fetched + '  Skipped: ' + d.skipped;
+          out.innerHTML += summary;
+          checkStreamingStatus();
+        }
+      }).catch(() => setTimeout(pollStreamingProgress, 2000));
+  }
+
   window.startStreamingRefresh = async function() {
     var btn = document.getElementById('streamingRefreshBtn');
     var out = document.getElementById('streamingRefreshResult');
-    btn.disabled = true; btn.textContent = '⏳ Refreshing... (this may take a few minutes)';
+    btn.disabled = true; btn.textContent = '⏳ Starting...';
     out.style.display = 'block';
-    out.textContent = 'Calling Watchmode API for all movies... please wait.';
-    out.style.color = 'var(--dim-white)';
+    out.innerHTML = '<span style="color:var(--dim-white);">Starting background refresh...</span>';
     try {
       var res  = await fetch('/admin/refresh-streaming', { method: 'POST', credentials: 'same-origin' });
       var data = await res.json();
       if (data.error) {
-        out.textContent = '❌ ' + data.error;
-        out.style.color = '#fca5a5';
-      } else {
-        out.innerHTML = '✅ Done! &nbsp; Fetched: <strong>' + data.filled + '</strong> &nbsp; Skipped (already cached): <strong>' + data.skipped + '</strong>' +
-          (data.errors ? ' &nbsp; Errors: <strong style="color:#fca5a5;">' + data.errors + '</strong>' : '') +
-          '<br><span style="font-size:.75rem;color:var(--dim-white);">' + (data.note || '') + '</span>';
-        out.style.color = 'var(--star-white)';
+        out.innerHTML = '❌ ' + data.error;
+        btn.disabled = false; btn.textContent = '📡 Refresh Streaming Cache';
+        return;
       }
+      btn.textContent = '⏳ Refreshing...';
+      _streamingPollTimer = setInterval(pollStreamingProgress, 1500);
     } catch(e) {
       out.textContent = '❌ Error: ' + e.message;
-      out.style.color = '#fca5a5';
+      btn.disabled = false; btn.textContent = '📡 Refresh Streaming Cache';
     }
-    btn.disabled = false; btn.textContent = '📡 Refresh Streaming Cache';
   };
 
   function pollRefresh() {
