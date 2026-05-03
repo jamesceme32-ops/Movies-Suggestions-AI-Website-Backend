@@ -97,9 +97,8 @@ def get_streaming_availability(imdb_id):
             data = json.loads(cached)
             cached_at = data.get("cached_at", "")
             if cached_at:
-                age = (_dt.datetime.utcnow() - _dt.datetime.fromisoformat(cached_at)).days
-                if age < 30:
-                    return data.get("sources", [])
+                # Cache never expires — re-run refresh manually when needed
+                return data.get("sources", [])
     except Exception as e:
         app.logger.warning(f"streaming cache read {imdb_id}: {e}")
 
@@ -925,7 +924,7 @@ def row_to_dict(r):
         "imdb_url":   r.get("IMDB URL",""),
         "google_url": r.get("Google URL",""),
         "imdb_id":    _extract_imdb_id(r.get("IMDB URL","")),
-        "streaming":  _get_cached_streaming(_extract_imdb_id(r.get("IMDB URL",""))),
+        "streaming":  [],  # populated after filtering if cache exists
     }
 
 
@@ -1014,6 +1013,10 @@ def suggest():
                 d["taste"]     = r.get("Taste Match %","")
                 d["score"]     = r.get("Composite Score","")
                 results.append(d)
+            # Inject streaming data for result movies only (not all 1176)
+            for d in results:
+                if d.get("imdb_id"):
+                    d["streaming"] = _get_cached_streaming(d["imdb_id"])
         except Exception: pass
 
     return render_template("suggest.html", profile=profile_summary, year_labels=YEAR_LABELS,
@@ -1676,86 +1679,45 @@ STREAMING_REFRESH_STATUS = {
     "complete": False, "error": ""
 }
 
-def _streaming_refresh_background():
+def _streaming_refresh_background(force=False):
+    """
+    force=False: only fetch movies with no cache entry (fill new).
+    force=True:  refetch everything regardless of cache (full refresh).
+    """
     global STREAMING_REFRESH_STATUS
-    import time, datetime as _dt
+    import time
     try:
         db     = r2_storage.load_movies_db()
         movies = db.get("movies", [])
-        # Only movies with an IMDb ID
         to_fetch = [m for m in movies if _extract_imdb_id(m.get("imdb_url",""))]
+        mode = "Force Refresh All" if force else "Fill Uncached Only"
         STREAMING_REFRESH_STATUS.update({
             "running": True, "done": 0, "total": len(to_fetch),
             "fetched": 0, "skipped": 0, "errors": 0,
-            "complete": False, "error": ""
+            "complete": False, "error": "", "mode": mode
         })
         for i, m in enumerate(to_fetch):
             imdb_id = _extract_imdb_id(m.get("imdb_url",""))
-            # Check if freshly cached
             skip = False
-            try:
-                cached = r2_storage._get(f"streaming:{imdb_id}")
-                if cached:
-                    data = json.loads(cached)
-                    cached_at = data.get("cached_at","")
-                    if cached_at:
-                        age = (_dt.datetime.utcnow() - _dt.datetime.fromisoformat(cached_at)).days
-                        if age < 30:
-                            skip = True
-            except Exception:
-                pass
+            if not force:
+                try:
+                    if r2_storage._get(f"streaming:{imdb_id}"):
+                        skip = True
+                except Exception:
+                    pass
             if skip:
                 STREAMING_REFRESH_STATUS["skipped"] += 1
             else:
                 try:
-                    sources = get_streaming_availability(imdb_id)
+                    get_streaming_availability(imdb_id)
                     STREAMING_REFRESH_STATUS["fetched"] += 1
                 except Exception:
                     STREAMING_REFRESH_STATUS["errors"] += 1
-                time.sleep(0.25)  # ~4 calls/sec — well within rate limits
+                time.sleep(0.25)
             STREAMING_REFRESH_STATUS["done"] = i + 1
         STREAMING_REFRESH_STATUS.update({"running": False, "complete": True})
     except Exception as e:
         STREAMING_REFRESH_STATUS.update({"running": False, "complete": True, "error": str(e)})
-
-
-@app.route("/admin/test-streaming")
-@admin_required
-def admin_test_streaming():
-    """Test Watchmode API with The Godfather (tt0068646)."""
-    import datetime as _dt
-    test_id = "tt0068646"
-    result = {"imdb_id": test_id, "watchmode_key_set": bool(WATCHMODE_API_KEY),
-              "key_preview": WATCHMODE_API_KEY[:8]+"..." if WATCHMODE_API_KEY else ""}
-    if WATCHMODE_API_KEY:
-        try:
-            # Step 1: search
-            r1 = requests.get("https://api.watchmode.com/v1/search/",
-                params={"apiKey": WATCHMODE_API_KEY, "search_field": "imdb_id",
-                        "search_value": test_id}, timeout=10)
-            result["search_status"] = r1.status_code
-            result["search_response"] = r1.json() if r1.ok else r1.text[:200]
-            # Step 2: get sources if found
-            title_results = r1.json().get("title_results", []) if r1.ok else []
-            if title_results:
-                wid = title_results[0].get("id")
-                result["watchmode_id"] = wid
-                r2 = requests.get(f"https://api.watchmode.com/v1/title/{wid}/sources/",
-                    params={"apiKey": WATCHMODE_API_KEY}, timeout=10)
-                result["sources_status"] = r2.status_code
-                result["sources_response"] = r2.json()[:5] if r2.ok else r2.text[:200]
-        except Exception as e:
-            result["error"] = str(e)
-    # Test R2 write
-    try:
-        ok = r2_storage._put("streaming:test", b'{"test":true}')
-        result["r2_write_ok"] = ok
-        read = r2_storage._get("streaming:test")
-        result["r2_read_ok"] = read is not None
-    except Exception as e:
-        result["r2_error"] = str(e)
-    return jsonify(result)
-
 
 @app.route("/admin/refresh-streaming", methods=["POST"])
 @admin_required
@@ -1764,9 +1726,12 @@ def admin_refresh_streaming():
         return jsonify({"error": "WATCHMODE_API_KEY not set in Railway environment variables."})
     if STREAMING_REFRESH_STATUS.get("running"):
         return jsonify({"error": "Refresh already running."})
+    force = request.get_json(silent=True, force=True) or {}
+    force_all = force.get("force", False)
     import threading
-    threading.Thread(target=_streaming_refresh_background, daemon=True).start()
-    return jsonify({"ok": True})
+    threading.Thread(target=_streaming_refresh_background,
+                     kwargs={"force": force_all}, daemon=True).start()
+    return jsonify({"ok": True, "mode": "force" if force_all else "fill"})
 
 
 @app.route("/admin/refresh-streaming/progress")
