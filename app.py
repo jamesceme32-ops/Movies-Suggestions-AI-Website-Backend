@@ -53,6 +53,19 @@ _RENTAL_SOURCES = {
     "AMC+": 528,
 }
 
+
+def _get_cached_streaming(imdb_id):
+    """Read streaming data from R2 cache — no API call, returns [] if not cached."""
+    if not imdb_id:
+        return []
+    try:
+        cached = r2_storage._get(f"streaming:{imdb_id}")
+        if cached:
+            return json.loads(cached).get("sources", [])
+    except Exception:
+        pass
+    return []
+
 def get_streaming_availability(imdb_id):
     """
     Fetch streaming sources for a movie using Watchmode API.
@@ -812,7 +825,7 @@ def score_and_filter(df, profile, predicted, style,
 
     # Streaming filter — uses pre-cached Watchmode data in R2
     if streaming_override:
-        allowed = {s.lower() for s in streaming_override}
+        allowed = {s.lower().strip() for s in streaming_override}
         def _has_service(row):
             imdb_id = _extract_imdb_id(row.get("IMDB URL",""))
             if not imdb_id: return False
@@ -820,7 +833,7 @@ def score_and_filter(df, profile, predicted, style,
                 cached = r2_storage._get(f"streaming:{imdb_id}")
                 if not cached: return False
                 sources = json.loads(cached).get("sources", [])
-                return any(s["name"].lower() in allowed for s in sources)
+                return any(s.get("name","").lower() in allowed for s in sources)
             except Exception:
                 return False
         res = res[res.apply(_has_service, axis=1)]
@@ -894,6 +907,7 @@ def row_to_dict(r):
         "imdb_url":   r.get("IMDB URL",""),
         "google_url": r.get("Google URL",""),
         "imdb_id":    _extract_imdb_id(r.get("IMDB URL","")),
+        "streaming":  _get_cached_streaming(_extract_imdb_id(r.get("IMDB URL",""))),
     }
 
 
