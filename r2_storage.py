@@ -47,6 +47,13 @@ def _put(key, body, content_type="application/json"):
     except Exception:
         return False
 
+def _delete(key):
+    try:
+        _client().delete_object(Bucket=BUCKET_NAME, Key=key)
+        return True
+    except Exception:
+        return False
+
 def _exists(key):
     try:
         _client().head_object(Bucket=BUCKET_NAME, Key=key)
@@ -117,17 +124,17 @@ def upload_bookmarks(file_bytes: bytes, original_filename: str = "") -> dict:
 
 def load_json(key: str) -> dict:
     """Load any JSON file from R2 by key."""
+    if not _ok(): return {}
+    raw = _get(key)
+    if not raw: return {}
     try:
-        obj = _client().get_object(Bucket=_bucket(), Key=key)
-        return json.loads(obj["Body"].read())
+        return json.loads(raw)
     except Exception:
         return {}
 
 
-def save_json(key: str, data: dict):
+def save_json(key: str, data: dict) -> bool:
     """Save any dict as JSON to R2 by key."""
+    if not _ok(): return False
     body = json.dumps(data, ensure_ascii=False, default=str)
-    _client().put_object(
-        Bucket=_bucket(), Key=key,
-        Body=body.encode("utf-8"), ContentType="application/json"
-    )
+    return _put(key, body.encode("utf-8"))

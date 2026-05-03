@@ -1742,9 +1742,16 @@ def _streaming_refresh_background(force=False):
             imdb_id = _extract_imdb_id(m.get("imdb_url",""))
             skip = False
             if not force:
+                # Skip if already cached
                 try:
                     if r2_storage._get(f"streaming:{imdb_id}"):
                         skip = True
+                except Exception:
+                    pass
+            elif force:
+                # Force mode: delete existing cache so get_streaming_availability refetches
+                try:
+                    r2_storage._delete(f"streaming:{imdb_id}")
                 except Exception:
                     pass
             if skip:
@@ -1763,6 +1770,49 @@ def _streaming_refresh_background(force=False):
         _STREAMING_INDEX = None
     except Exception as e:
         STREAMING_REFRESH_STATUS.update({"running": False, "complete": True, "error": str(e)})
+
+@app.route("/admin/test-streaming")
+@admin_required
+def admin_test_streaming():
+    """Test Watchmode API + show raw sources for The Godfather."""
+    import datetime as _dt
+    test_id = "tt0068646"
+    result = {
+        "imdb_id": test_id,
+        "watchmode_key_set": bool(WATCHMODE_API_KEY),
+        "key_preview": WATCHMODE_API_KEY[:8]+"..." if WATCHMODE_API_KEY else "",
+    }
+    if WATCHMODE_API_KEY:
+        try:
+            r1 = requests.get("https://api.watchmode.com/v1/search/",
+                params={"apiKey": WATCHMODE_API_KEY, "search_field": "imdb_id",
+                        "search_value": test_id}, timeout=10)
+            title_results = r1.json().get("title_results", []) if r1.ok else []
+            result["search_ok"] = r1.ok
+            if title_results:
+                wid = title_results[0]["id"]
+                result["watchmode_id"] = wid
+                r2 = requests.get(f"https://api.watchmode.com/v1/title/{wid}/sources/",
+                    params={"apiKey": WATCHMODE_API_KEY}, timeout=10)
+                raw = r2.json() if r2.ok else []
+                result["sources_count"] = len(raw) if isinstance(raw, list) else 0
+                result["all_sources"] = [
+                    {"name": s.get("name"), "source_id": s.get("source_id"),
+                     "type": s.get("type"), "price": s.get("price"),
+                     "region": s.get("region")}
+                    for s in (raw if isinstance(raw, list) else [])
+                    if s.get("region") in ("US", None)
+                ][:20]
+        except Exception as e:
+            result["error"] = str(e)
+    # Also show what's currently cached
+    try:
+        cached = r2_storage._get(f"streaming:{test_id}")
+        result["cached_sources"] = json.loads(cached).get("sources",[]) if cached else None
+    except Exception:
+        result["cached_sources"] = None
+    return jsonify(result)
+
 
 @app.route("/admin/rebuild-streaming-index", methods=["POST"])
 @admin_required
