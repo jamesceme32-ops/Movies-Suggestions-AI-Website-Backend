@@ -36,21 +36,35 @@ OMDB_API_KEY   = os.environ.get("OMDB_API_KEY", "")
 TMDB_API_KEY      = os.environ.get("TMDB_API_KEY", "")
 WATCHMODE_API_KEY = os.environ.get("WATCHMODE_API_KEY", "")
 
+# Subscription streaming services (source_id from Watchmode)
 _STREAMING_SOURCES = {
-    "Netflix": 203, "Prime Video": 26, "Disney+": 372, "MAX": 1825,
-    "Hulu": 157, "Apple TV+": 371, "Paramount+": 444, "Peacock Premium": 322,
-    "Showtime": 43, "Starz": 191, "MGM+": 529, "YouTube": 248, "Crunchyroll": 238,
+    "Netflix":         203,
+    "Prime Video":     26,
+    "Disney+":         372,
+    "MAX":             1825,
+    "Hulu":            157,
+    "Apple TV+":       371,
+    "Paramount+":      444,
+    "Peacock Premium": 322,
+    "Peacock":         322,   # alias
+    "Showtime":        43,
+    "Starz":           191,
+    "MGM+":            529,
+    "YouTube":         248,
+    "Crunchyroll":     238,
+    "AMC+":            526,
+    "BritBox":         282,
 }
-# Rental/purchase sources shown separately with "(Rent)" label
+# Rental/purchase services — shown separately in dropdown
 _RENTAL_SOURCES = {
-    "Apple TV": 371,       # also does rentals
-    "Prime Video": 26,     # also does rentals
-    "YouTube": 248,        # also does rentals
-    "Vudu": 7,
-    "Google Play": 3,
-    "Microsoft": 8,
-    "Fandango": 17,
-    "AMC+": 528,
+    "Prime Video":  26,    # also rents
+    "Apple TV":     371,   # also rents (same source_id as Apple TV+)
+    "YouTube":      248,   # also rents
+    "Vudu":         7,
+    "Google Play":  3,
+    "Microsoft":    8,
+    "Fandango":     17,
+    "DirecTV":      6,
 }
 
 
