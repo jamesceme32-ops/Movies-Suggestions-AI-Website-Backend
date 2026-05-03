@@ -45,28 +45,36 @@ _STREAMING_SOURCES = {
 def get_streaming_availability(imdb_id):
     if not WATCHMODE_API_KEY or not imdb_id:
         return []
-    cache_key = f"streaming_cache/{imdb_id}.json"
+    import datetime as _dt
+    cache_key = f"streaming:{imdb_id}"   # flat key, no slash
     try:
         cached = r2_storage._get(cache_key)
         if cached:
             data = json.loads(cached)
-            import datetime as _dt
             cached_at = data.get("cached_at","")
             if cached_at:
                 age = (_dt.datetime.utcnow() - _dt.datetime.fromisoformat(cached_at)).days
                 if age < 30:
                     return data.get("sources", [])
-    except Exception:
-        pass
+    except Exception as e:
+        app.logger.warning(f"streaming cache read error {imdb_id}: {e}")
+
     try:
         r = requests.get(
             f"https://api.watchmode.com/v1/title/imdb:{imdb_id}/sources/",
-            params={"apiKey": WATCHMODE_API_KEY}, timeout=8)
+            params={"apiKey": WATCHMODE_API_KEY}, timeout=10)
+        app.logger.info(f"Watchmode {imdb_id}: status={r.status_code}")
         if not r.ok:
+            app.logger.warning(f"Watchmode error for {imdb_id}: {r.status_code} {r.text[:100]}")
+            return []
+        raw = r.json()
+        # raw can be a list or dict with error
+        if isinstance(raw, dict) and raw.get("error"):
+            app.logger.warning(f"Watchmode API error for {imdb_id}: {raw}")
             return []
         seen = set(); sources = []
         target_ids = set(_STREAMING_SOURCES.values())
-        for s in r.json():
+        for s in (raw if isinstance(raw, list) else []):
             sid = s.get("source_id")
             if sid not in target_ids or s.get("type") != "sub" or sid in seen:
                 continue
@@ -74,11 +82,12 @@ def get_streaming_availability(imdb_id):
             name = next((k for k,v in _STREAMING_SOURCES.items() if v==sid),"")
             if name:
                 sources.append({"name": name, "web_url": s.get("web_url","")})
-        import datetime as _dt
         body = json.dumps({"sources": sources, "cached_at": _dt.datetime.utcnow().isoformat()})
-        r2_storage._put(cache_key, body.encode())
+        ok = r2_storage._put(cache_key, body.encode())
+        app.logger.info(f"Watchmode {imdb_id}: {len(sources)} sources, cached={ok}")
         return sources
-    except Exception:
+    except Exception as e:
+        app.logger.error(f"streaming fetch error {imdb_id}: {e}")
         return []
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "cinematch")
 
@@ -750,7 +759,7 @@ def score_and_filter(df, profile, predicted, style,
             imdb_id = _extract_imdb_id(row.get("IMDB URL",""))
             if not imdb_id: return False
             try:
-                cached = r2_storage._get(f"streaming_cache/{imdb_id}.json")
+                cached = r2_storage._get(f"streaming:{imdb_id}")
                 if not cached: return False
                 sources = json.loads(cached).get("sources", [])
                 return any(s["name"].lower() in allowed for s in sources)
@@ -1594,7 +1603,7 @@ def _streaming_refresh_background():
             # Check if freshly cached
             skip = False
             try:
-                cached = r2_storage._get(f"streaming_cache/{imdb_id}.json")
+                cached = r2_storage._get(f"streaming:{imdb_id}")
                 if cached:
                     data = json.loads(cached)
                     cached_at = data.get("cached_at","")
@@ -1617,6 +1626,34 @@ def _streaming_refresh_background():
         STREAMING_REFRESH_STATUS.update({"running": False, "complete": True})
     except Exception as e:
         STREAMING_REFRESH_STATUS.update({"running": False, "complete": True, "error": str(e)})
+
+
+@app.route("/admin/test-streaming")
+@admin_required
+def admin_test_streaming():
+    """Test Watchmode API with The Godfather (tt0068646)."""
+    import datetime as _dt
+    test_id = "tt0068646"
+    result = {"imdb_id": test_id, "watchmode_key_set": bool(WATCHMODE_API_KEY),
+              "key_preview": WATCHMODE_API_KEY[:8]+"..." if WATCHMODE_API_KEY else ""}
+    if WATCHMODE_API_KEY:
+        try:
+            r = requests.get(
+                f"https://api.watchmode.com/v1/title/imdb:{test_id}/sources/",
+                params={"apiKey": WATCHMODE_API_KEY}, timeout=10)
+            result["status_code"] = r.status_code
+            result["raw_response"] = r.json() if r.ok else r.text[:200]
+        except Exception as e:
+            result["error"] = str(e)
+    # Test R2 write
+    try:
+        ok = r2_storage._put("streaming:test", b'{"test":true}')
+        result["r2_write_ok"] = ok
+        read = r2_storage._get("streaming:test")
+        result["r2_read_ok"] = read is not None
+    except Exception as e:
+        result["r2_error"] = str(e)
+    return jsonify(result)
 
 
 @app.route("/admin/refresh-streaming", methods=["POST"])
@@ -1647,7 +1684,7 @@ def admin_streaming_status():
         imdb_id = _extract_imdb_id(m.get("imdb_url",""))
         if not imdb_id: continue
         try:
-            raw = r2_storage._get(f"streaming_cache/{imdb_id}.json")
+            raw = r2_storage._get(f"streaming:{imdb_id}")
             if raw: cached_count += 1
         except Exception:
             pass
