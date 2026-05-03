@@ -43,35 +43,61 @@ _STREAMING_SOURCES = {
 }
 
 def get_streaming_availability(imdb_id):
+    """
+    Fetch streaming sources for a movie using Watchmode API.
+    Step 1: Search by IMDb ID to get Watchmode title ID.
+    Step 2: Fetch sources using Watchmode title ID.
+    Results cached flat in R2 as streaming:{imdb_id}.
+    """
     if not WATCHMODE_API_KEY or not imdb_id:
         return []
     import datetime as _dt
-    cache_key = f"streaming:{imdb_id}"   # flat key, no slash
+    cache_key = f"streaming:{imdb_id}"
+    # Check cache
     try:
         cached = r2_storage._get(cache_key)
         if cached:
             data = json.loads(cached)
-            cached_at = data.get("cached_at","")
+            cached_at = data.get("cached_at", "")
             if cached_at:
                 age = (_dt.datetime.utcnow() - _dt.datetime.fromisoformat(cached_at)).days
                 if age < 30:
                     return data.get("sources", [])
     except Exception as e:
-        app.logger.warning(f"streaming cache read error {imdb_id}: {e}")
+        app.logger.warning(f"streaming cache read {imdb_id}: {e}")
 
     try:
-        r = requests.get(
-            f"https://api.watchmode.com/v1/title/imdb:{imdb_id}/sources/",
-            params={"apiKey": WATCHMODE_API_KEY}, timeout=10)
-        app.logger.info(f"Watchmode {imdb_id}: status={r.status_code}")
-        if not r.ok:
-            app.logger.warning(f"Watchmode error for {imdb_id}: {r.status_code} {r.text[:100]}")
+        # Step 1: search Watchmode for the title by IMDb ID
+        search_r = requests.get(
+            "https://api.watchmode.com/v1/search/",
+            params={"apiKey": WATCHMODE_API_KEY,
+                    "search_field": "imdb_id",
+                    "search_value": imdb_id},
+            timeout=10)
+        if not search_r.ok:
+            app.logger.warning(f"Watchmode search failed {imdb_id}: {search_r.status_code}")
+            # Cache empty result so we don't retry on every page load
+            _cache_streaming(cache_key, [], _dt)
             return []
-        raw = r.json()
-        # raw can be a list or dict with error
-        if isinstance(raw, dict) and raw.get("error"):
-            app.logger.warning(f"Watchmode API error for {imdb_id}: {raw}")
+        search_data = search_r.json()
+        title_results = search_data.get("title_results", [])
+        if not title_results:
+            _cache_streaming(cache_key, [], _dt)
             return []
+        watchmode_id = title_results[0].get("id")
+        if not watchmode_id:
+            _cache_streaming(cache_key, [], _dt)
+            return []
+
+        # Step 2: get sources for this Watchmode title ID
+        sources_r = requests.get(
+            f"https://api.watchmode.com/v1/title/{watchmode_id}/sources/",
+            params={"apiKey": WATCHMODE_API_KEY},
+            timeout=10)
+        if not sources_r.ok:
+            _cache_streaming(cache_key, [], _dt)
+            return []
+        raw = sources_r.json()
         seen = set(); sources = []
         target_ids = set(_STREAMING_SOURCES.values())
         for s in (raw if isinstance(raw, list) else []):
@@ -79,16 +105,23 @@ def get_streaming_availability(imdb_id):
             if sid not in target_ids or s.get("type") != "sub" or sid in seen:
                 continue
             seen.add(sid)
-            name = next((k for k,v in _STREAMING_SOURCES.items() if v==sid),"")
+            name = next((k for k, v in _STREAMING_SOURCES.items() if v == sid), "")
             if name:
-                sources.append({"name": name, "web_url": s.get("web_url","")})
-        body = json.dumps({"sources": sources, "cached_at": _dt.datetime.utcnow().isoformat()})
-        ok = r2_storage._put(cache_key, body.encode())
-        app.logger.info(f"Watchmode {imdb_id}: {len(sources)} sources, cached={ok}")
+                sources.append({"name": name, "web_url": s.get("web_url", "")})
+        _cache_streaming(cache_key, sources, _dt)
+        app.logger.info(f"Watchmode {imdb_id}: {len(sources)} sources")
         return sources
     except Exception as e:
         app.logger.error(f"streaming fetch error {imdb_id}: {e}")
         return []
+
+def _cache_streaming(cache_key, sources, _dt):
+    try:
+        body = json.dumps({"sources": sources,
+                           "cached_at": _dt.datetime.utcnow().isoformat()})
+        r2_storage._put(cache_key, body.encode())
+    except Exception as e:
+        app.logger.warning(f"streaming cache write error: {e}")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "cinematch")
 
 STORE      = {}
@@ -1638,11 +1671,21 @@ def admin_test_streaming():
               "key_preview": WATCHMODE_API_KEY[:8]+"..." if WATCHMODE_API_KEY else ""}
     if WATCHMODE_API_KEY:
         try:
-            r = requests.get(
-                f"https://api.watchmode.com/v1/title/imdb:{test_id}/sources/",
-                params={"apiKey": WATCHMODE_API_KEY}, timeout=10)
-            result["status_code"] = r.status_code
-            result["raw_response"] = r.json() if r.ok else r.text[:200]
+            # Step 1: search
+            r1 = requests.get("https://api.watchmode.com/v1/search/",
+                params={"apiKey": WATCHMODE_API_KEY, "search_field": "imdb_id",
+                        "search_value": test_id}, timeout=10)
+            result["search_status"] = r1.status_code
+            result["search_response"] = r1.json() if r1.ok else r1.text[:200]
+            # Step 2: get sources if found
+            title_results = r1.json().get("title_results", []) if r1.ok else []
+            if title_results:
+                wid = title_results[0].get("id")
+                result["watchmode_id"] = wid
+                r2 = requests.get(f"https://api.watchmode.com/v1/title/{wid}/sources/",
+                    params={"apiKey": WATCHMODE_API_KEY}, timeout=10)
+                result["sources_status"] = r2.status_code
+                result["sources_response"] = r2.json()[:5] if r2.ok else r2.text[:200]
         except Exception as e:
             result["error"] = str(e)
     # Test R2 write
