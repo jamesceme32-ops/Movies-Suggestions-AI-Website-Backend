@@ -281,6 +281,14 @@
       <a class="nav-link" href="/reset">↩ Reload</a>
     </div>
   </nav>
+  <!-- Global loading overlay — shown during recommendation fetch -->
+  <div id="global-loading-overlay" style="display:none;position:fixed;inset:0;z-index:9998;background:rgba(3,5,15,0.82);backdrop-filter:blur(4px);align-items:center;justify-content:center;flex-direction:column;gap:18px;">
+    <div style="width:52px;height:52px;border:3px solid rgba(64,200,240,0.2);border-top-color:var(--cyan);border-radius:50%;animation:glspin 0.8s linear infinite;"></div>
+    <div style="font-family:'Playfair Display',serif;font-size:1rem;color:var(--star-white);letter-spacing:.05em;">Finding your movies...</div>
+    <div id="gl-loading-sub" style="font-size:.78rem;color:var(--dim-white);font-family:'Inter',sans-serif;">Analysing your taste profile</div>
+  </div>
+  <style>@keyframes glspin { to { transform: rotate(360deg); } }</style>
+
   <div class="page page-fade">{% block content %}{% endblock %}
   {% block scripts %}{% endblock %}
   </div>
@@ -301,6 +309,43 @@
     document.addEventListener('keydown', e => {
       if (e.key === 'Escape') closePosterModal();
     });
+
+    // ── Global loading overlay ────────────────────────────────────────────
+    var _loadingMsgs = [
+      'Analysing your taste profile',
+      'Scoring all movies',
+      'Applying your filters',
+      'Almost there...',
+    ];
+    var _loadingTimer = null;
+
+    window.showLoading = function() {
+      var el = document.getElementById('global-loading-overlay');
+      if (!el) return;
+      el.style.display = 'flex';
+      var sub = document.getElementById('gl-loading-sub');
+      var i = 0;
+      _loadingTimer = setInterval(function() {
+        i = (i + 1) % _loadingMsgs.length;
+        if (sub) sub.textContent = _loadingMsgs[i];
+      }, 1800);
+    };
+    window.hideLoading = function() {
+      var el = document.getElementById('global-loading-overlay');
+      if (el) el.style.display = 'none';
+      if (_loadingTimer) { clearInterval(_loadingTimer); _loadingTimer = null; }
+    };
+
+    // Show on form submit, hide on page load
+    document.addEventListener('submit', function(e) {
+      var form = e.target;
+      var action = form.getAttribute('action') || '';
+      if (action === '/suggest' || action.startsWith('/suggest')) {
+        window.showLoading();
+      }
+    });
+    // Hide whenever a new page finishes loading
+    window.hideLoading();
 
     // ── SPA Navigation — video never stops ───────────────────────────────
     function _shouldIntercept(href) {
@@ -432,6 +477,7 @@
 
         history.pushState({ url: action }, '', action);
         window.scrollTo(0, 0);
+        window.hideLoading();
         page.style.transition = 'opacity 0.18s ease';
         page.style.opacity    = '1';
         setTimeout(() => { page.style.transition = ''; }, 220);

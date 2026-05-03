@@ -50,27 +50,7 @@
     border-color: #fca5a5;
     color: #fca5a5;
     background: rgba(252,165,165,.08);
-  }
-
-  #loading-overlay {
-    display: none;
-    position: fixed; inset: 0; z-index: 9998;
-    background: rgba(3,5,15,0.75);
-    backdrop-filter: blur(4px);
-    align-items: center;
-    justify-content: center;
-    flex-direction: column;
-    gap: 18px;
-  }
-  #loading-overlay.active { display: flex; }
-  .loading-spinner {
-    width: 48px; height: 48px;
-    border: 3px solid rgba(64,200,240,0.2);
-    border-top-color: var(--cyan);
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
+  } }
   .loading-text {
     font-family: 'Playfair Display', serif;
     font-size: 1rem; color: var(--star-white);
@@ -471,36 +451,7 @@
   multi('dur-group','dur-inputs','dur');
   multi('streaming-group','streaming-inputs','streaming');
 
-  // Show loading overlay on form submit
-  var suggestForm = document.querySelector('.suggest-page form');
-  if (suggestForm) {
-    suggestForm.addEventListener('submit', function() {
-      var overlay = document.getElementById('loading-overlay');
-      if (overlay) {
-        overlay.classList.add('active');
-        // Cycle through loading messages
-        var msgs = [
-          'Analysing your taste profile',
-          'Scoring all 1,176 movies',
-          'Applying your filters',
-          'Almost there...',
-        ];
-        var i = 0;
-        var subEl = document.getElementById('loading-sub-text');
-        var interval = setInterval(function() {
-          i = (i + 1) % msgs.length;
-          if (subEl) subEl.textContent = msgs[i];
-        }, 1800);
-        // Clean up if page loads quickly
-        window._loadingInterval = interval;
-      }
-    });
-  }
 
-  // Hide overlay if already showing (back navigation)
-  var overlay = document.getElementById('loading-overlay');
-  if (overlay) overlay.classList.remove('active');
-  if (window._loadingInterval) { clearInterval(window._loadingInterval); window._loadingInterval = null; }
 
   document.getElementById('clear-btn').addEventListener('click',()=>{
     document.querySelectorAll('#style-tabs .toggle-btn').forEach(b=>{b.classList.remove('active','active-gold');if(b.dataset.val==='Balanced')b.classList.add('active-gold');});
