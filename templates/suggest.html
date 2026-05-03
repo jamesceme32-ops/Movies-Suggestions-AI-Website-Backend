@@ -433,6 +433,7 @@
     "MAX":"https://img.icons8.com/color/24/max.png",
     "Hulu":"https://img.icons8.com/color/24/hulu.png",
     "Apple TV+":"https://img.icons8.com/color/24/apple-tv-plus.png",
+    "Apple TV":"https://img.icons8.com/color/24/apple-tv.png",
     "Paramount+":"https://img.icons8.com/color/24/paramount-plus.png",
     "Peacock Premium":"https://img.icons8.com/color/24/peacock.png",
     "Showtime":"https://img.icons8.com/color/24/showtime.png",
@@ -440,6 +441,10 @@
     "MGM+":"https://img.icons8.com/color/24/mgm.png",
     "YouTube":"https://img.icons8.com/color/24/youtube-play.png",
     "Crunchyroll":"https://img.icons8.com/color/24/crunchyroll.png",
+    "Vudu":"https://img.icons8.com/color/24/vudu.png",
+    "Google Play":"https://img.icons8.com/color/24/google-play.png",
+    "Microsoft":"https://img.icons8.com/color/24/microsoft.png",
+    "Fandango":"https://img.icons8.com/color/24/fandango.png",
   };
 
   async function loadStreaming(imdbId, el) {
@@ -451,14 +456,33 @@
         el.innerHTML='<span style="font-size:.72rem;color:var(--dim-white);">Not available on major streaming services</span>';
         return;
       }
-      el.innerHTML = '<span style="font-size:.72rem;color:var(--dim-white);margin-right:6px;align-self:center;">Stream on:</span>' +
-        data.sources.map(s=>{
-          var logo = _streamingLogos[s.name] || '';
-          var url  = s.web_url || '#';
-          return '<a class="streaming-badge" href="'+url+'" target="_blank">' +
-            (logo ? '<img src="'+logo+'" alt="'+s.name+'">' : '') +
-            s.name + '</a>';
-        }).join('');
+      var subSources  = data.sources.filter(s => s.type === 'sub' || !s.type);
+      var rentSources = data.sources.filter(s => s.type === 'rent');
+      var html = '';
+      if (subSources.length > 0) {
+        html += '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px;">' +
+          '<span style="font-size:.72rem;color:var(--dim-white);white-space:nowrap;">Stream on:</span>' +
+          subSources.map(s => {
+            var logo = _streamingLogos[s.name] || '';
+            var url  = s.web_url || '#';
+            return '<a class="streaming-badge" href="'+url+'" target="_blank">' +
+              (logo ? '<img src="'+logo+'" alt="'+s.name+'">' : '') +
+              s.name + '</a>';
+          }).join('') + '</div>';
+      }
+      if (rentSources.length > 0) {
+        html += '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
+          '<span style="font-size:.72rem;color:var(--dim-white);white-space:nowrap;">Rent/Buy:</span>' +
+          rentSources.map(s => {
+            var logo = _streamingLogos[s.name] || '';
+            var url  = s.web_url || '#';
+            var price = s.price ? ' ('+s.price+')' : '';
+            return '<a class="streaming-badge" href="'+url+'" target="_blank" style="border-color:rgba(240,192,64,.3);color:var(--dim-white);">' +
+              (logo ? '<img src="'+logo+'" alt="'+s.name+'">' : '') +
+              s.name + price + '</a>';
+          }).join('') + '</div>';
+      }
+      el.innerHTML = html;
     } catch(e) {
       el.innerHTML='<span style="font-size:.72rem;color:var(--dim-white);">Could not load streaming info</span>';
     }
