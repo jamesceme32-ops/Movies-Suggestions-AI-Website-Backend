@@ -165,11 +165,44 @@ def get_streaming_availability(imdb_id):
         app.logger.error(f"streaming fetch error {imdb_id}: {e}")
         return []
 
+# In-memory streaming index: {imdb_id: [service_names]}
+_STREAMING_INDEX = None
+
+def _load_streaming_index():
+    """Load the streaming index from R2 into memory. Called once per request."""
+    global _STREAMING_INDEX
+    if _STREAMING_INDEX is not None:
+        return _STREAMING_INDEX
+    try:
+        raw = r2_storage._get("streaming_index")
+        if raw:
+            _STREAMING_INDEX = json.loads(raw)
+            return _STREAMING_INDEX
+    except Exception:
+        pass
+    _STREAMING_INDEX = {}
+    return _STREAMING_INDEX
+
+def _update_streaming_index(imdb_id, sources):
+    """Update the in-memory and R2 streaming index for one movie."""
+    global _STREAMING_INDEX
+    if _STREAMING_INDEX is None:
+        _load_streaming_index()
+    service_names = [s["name"] for s in sources if s.get("name")]
+    _STREAMING_INDEX[imdb_id] = service_names
+    try:
+        r2_storage._put("streaming_index", json.dumps(_STREAMING_INDEX).encode())
+    except Exception as e:
+        app.logger.warning(f"streaming index update error: {e}")
+
 def _cache_streaming(cache_key, sources, _dt):
     try:
         body = json.dumps({"sources": sources,
                            "cached_at": _dt.datetime.utcnow().isoformat()})
         r2_storage._put(cache_key, body.encode())
+        # Update the flat index too
+        imdb_id = cache_key.replace("streaming:", "")
+        _update_streaming_index(imdb_id, sources)
     except Exception as e:
         app.logger.warning(f"streaming cache write error: {e}")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "cinematch")
@@ -835,21 +868,14 @@ def score_and_filter(df, profile, predicted, style,
     res = res.copy()
     base_score = (w_imdb*imdb_norm + w_taste*taste + w_pred*pred_norm)
 
-    # Streaming filter — bulk pre-load all cached data, then filter in memory
+    # Streaming filter — uses pre-loaded index (single R2 read, instant)
     if streaming_override:
-        allowed = {s.lower().strip() for s in streaming_override}
-        # Build a set of imdb_ids that have the requested service
-        imdb_ids_in_res = set(
-            _extract_imdb_id(r.get("IMDB URL",""))
-            for _, r in res.iterrows()
-        )
-        matching_ids = set()
-        for imdb_id in imdb_ids_in_res:
-            if not imdb_id:
-                continue
-            sources = _get_cached_streaming(imdb_id)
-            if any(s.get("name","").lower() in allowed for s in sources):
-                matching_ids.add(imdb_id)
+        allowed  = {s.lower().strip() for s in streaming_override}
+        idx_data = _load_streaming_index()  # already loaded, just returns cached dict
+        matching_ids = {
+            imdb_id for imdb_id, names in idx_data.items()
+            if any(n.lower() in allowed for n in names)
+        }
         res = res[res.apply(
             lambda r: _extract_imdb_id(r.get("IMDB URL","")) in matching_ids,
             axis=1
@@ -946,6 +972,9 @@ def index():
 @app.route("/suggest", methods=["GET", "POST"])
 def suggest():
     _clear_streaming_mem_cache()  # fresh per request
+    global _STREAMING_INDEX
+    _STREAMING_INDEX = None   # force reload of index each request
+    _load_streaming_index()   # single R2 read — used by streaming filter
     sid = get_sid()
     if sid not in STORE:
         if not load_store_from_db(sid): return redirect(url_for("index"))
@@ -1718,6 +1747,33 @@ def _streaming_refresh_background(force=False):
         STREAMING_REFRESH_STATUS.update({"running": False, "complete": True})
     except Exception as e:
         STREAMING_REFRESH_STATUS.update({"running": False, "complete": True, "error": str(e)})
+
+@app.route("/admin/rebuild-streaming-index", methods=["POST"])
+@admin_required
+def admin_rebuild_streaming_index():
+    """Rebuild streaming_index from all individually cached movies."""
+    global _STREAMING_INDEX
+    db     = r2_storage.load_movies_db()
+    movies = db.get("movies", [])
+    index  = {}
+    rebuilt = 0; missing = 0
+    for m in movies:
+        imdb_id = _extract_imdb_id(m.get("imdb_url",""))
+        if not imdb_id: continue
+        try:
+            raw = r2_storage._get(f"streaming:{imdb_id}")
+            if raw:
+                sources = json.loads(raw).get("sources", [])
+                index[imdb_id] = [s["name"] for s in sources if s.get("name")]
+                rebuilt += 1
+            else:
+                missing += 1
+        except Exception:
+            missing += 1
+    r2_storage._put("streaming_index", json.dumps(index).encode())
+    _STREAMING_INDEX = index
+    return jsonify({"rebuilt": rebuilt, "missing": missing, "total": len(movies)})
+
 
 @app.route("/admin/refresh-streaming", methods=["POST"])
 @admin_required
