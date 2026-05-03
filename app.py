@@ -872,6 +872,7 @@ def score_and_filter(df, profile, predicted, style,
     if streaming_override:
         allowed  = {s.lower().strip() for s in streaming_override}
         idx_data = _load_streaming_index()  # already loaded, just returns cached dict
+        app.logger.info(f"[filter] streaming_override={streaming_override}, allowed={allowed}, index_size={len(idx_data)}")
         matching_ids = {
             imdb_id for imdb_id, names in idx_data.items()
             if any(n.lower() in allowed for n in names)
@@ -974,7 +975,8 @@ def suggest():
     _clear_streaming_mem_cache()  # fresh per request
     global _STREAMING_INDEX
     _STREAMING_INDEX = None   # force reload of index each request
-    _load_streaming_index()   # single R2 read — used by streaming filter
+    idx_data = _load_streaming_index()   # single R2 read — used by streaming filter
+    app.logger.info(f"[suggest] streaming index loaded: {len(idx_data)} entries, form streaming: {request.form.getlist('streaming')}")
     sid = get_sid()
     if sid not in STORE:
         if not load_store_from_db(sid): return redirect(url_for("index"))
