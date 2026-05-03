@@ -54,17 +54,30 @@ _RENTAL_SOURCES = {
 }
 
 
+# In-process streaming cache — populated per-request to avoid repeated R2 reads
+_STREAMING_MEM_CACHE = {}
+
 def _get_cached_streaming(imdb_id):
     """Read streaming data from R2 cache — no API call, returns [] if not cached."""
     if not imdb_id:
         return []
+    if imdb_id in _STREAMING_MEM_CACHE:
+        return _STREAMING_MEM_CACHE[imdb_id]
     try:
         cached = r2_storage._get(f"streaming:{imdb_id}")
         if cached:
-            return json.loads(cached).get("sources", [])
+            sources = json.loads(cached).get("sources", [])
+            _STREAMING_MEM_CACHE[imdb_id] = sources
+            return sources
     except Exception:
         pass
+    _STREAMING_MEM_CACHE[imdb_id] = []
     return []
+
+def _clear_streaming_mem_cache():
+    """Clear in-process cache — call at start of each suggest request."""
+    global _STREAMING_MEM_CACHE
+    _STREAMING_MEM_CACHE = {}
 
 def get_streaming_availability(imdb_id):
     """
@@ -823,20 +836,25 @@ def score_and_filter(df, profile, predicted, style,
     res = res.copy()
     base_score = (w_imdb*imdb_norm + w_taste*taste + w_pred*pred_norm)
 
-    # Streaming filter — uses pre-cached Watchmode data in R2
+    # Streaming filter — bulk pre-load all cached data, then filter in memory
     if streaming_override:
         allowed = {s.lower().strip() for s in streaming_override}
-        def _has_service(row):
-            imdb_id = _extract_imdb_id(row.get("IMDB URL",""))
-            if not imdb_id: return False
-            try:
-                cached = r2_storage._get(f"streaming:{imdb_id}")
-                if not cached: return False
-                sources = json.loads(cached).get("sources", [])
-                return any(s.get("name","").lower() in allowed for s in sources)
-            except Exception:
-                return False
-        res = res[res.apply(_has_service, axis=1)]
+        # Build a set of imdb_ids that have the requested service
+        imdb_ids_in_res = set(
+            _extract_imdb_id(r.get("IMDB URL",""))
+            for _, r in res.iterrows()
+        )
+        matching_ids = set()
+        for imdb_id in imdb_ids_in_res:
+            if not imdb_id:
+                continue
+            sources = _get_cached_streaming(imdb_id)
+            if any(s.get("name","").lower() in allowed for s in sources):
+                matching_ids.add(imdb_id)
+        res = res[res.apply(
+            lambda r: _extract_imdb_id(r.get("IMDB URL","")) in matching_ids,
+            axis=1
+        )]
 
     # Boost movies matching MORE of the selected genres to the top
     if genre_override:
@@ -928,6 +946,7 @@ def index():
 
 @app.route("/suggest", methods=["GET", "POST"])
 def suggest():
+    _clear_streaming_mem_cache()  # fresh per request
     sid = get_sid()
     if sid not in STORE:
         if not load_store_from_db(sid): return redirect(url_for("index"))
