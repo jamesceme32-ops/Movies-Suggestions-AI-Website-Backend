@@ -233,11 +233,11 @@
       <div class="form-label">Streaming Service <span style="font-weight:400;font-size:.78rem;color:var(--dim-white);">— select any (blank = all)</span></div>
       <div class="toggle-group" id="streaming-group">
         {% set services = [
-          ("Netflix","netflix"),("Prime Video","prime"),("Disney+","disney"),
-          ("MAX","max"),("Hulu","hulu"),("Apple TV+","appletv"),
-          ("Paramount+","paramount"),("Peacock Premium","peacock"),
-          ("Showtime","showtime"),("Starz","starz"),("MGM+","mgm"),
-          ("YouTube","youtube"),("Crunchyroll","crunchyroll")
+          ("Netflix","Netflix"),("Prime Video","Prime Video"),("Disney+","Disney+"),
+          ("MAX","MAX"),("Hulu","Hulu"),("Apple TV+","Apple TV+"),
+          ("Paramount+","Paramount+"),("Peacock Premium","Peacock Premium"),
+          ("Showtime","Showtime"),("Starz","Starz"),("MGM+","MGM+"),
+          ("YouTube","YouTube"),("Crunchyroll","Crunchyroll")
         ] %}
         {% set sel_s = form.getlist('streaming') %}
         {% for name, val in services %}
@@ -339,9 +339,37 @@
               <div><strong>Cast</strong><p>{{ m.cast or m.actors or '—' }}</p></div>
               <div><strong>Language</strong><p>{{ m.language or '—' }}</p></div>
             </div>
-            {% if m.imdb_id %}
-            <div class="streaming-icons" id="streaming-{{ loop.index0 }}" style="margin-top:10px;">
-              <span style="font-size:.72rem;color:var(--dim-white);">Loading streaming...</span>
+            {% if m.streaming or m.imdb_id %}
+            <div class="streaming-icons" style="margin-top:10px;">
+              {% set sub_sources  = m.streaming | selectattr("type","eq","sub")  | list %}
+              {% set rent_sources = m.streaming | selectattr("type","eq","rent") | list %}
+              {% set sub_sources2  = m.streaming | rejectattr("type","defined") | list %}
+              {% if m.streaming %}
+                {% if sub_sources or sub_sources2 %}
+                <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px;">
+                  <span style="font-size:.72rem;color:var(--dim-white);white-space:nowrap;">Stream on:</span>
+                  {% for s in (sub_sources + sub_sources2) %}
+                  <a class="streaming-badge" href="{{ s.web_url or '#' }}" target="_blank">{{ s.name }}</a>
+                  {% endfor %}
+                </div>
+                {% endif %}
+                {% if rent_sources %}
+                <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                  <span style="font-size:.72rem;color:var(--dim-white);white-space:nowrap;">Rent/Buy:</span>
+                  {% for s in rent_sources %}
+                  <a class="streaming-badge" href="{{ s.web_url or '#' }}" target="_blank"
+                     style="border-color:rgba(240,192,64,.3);color:var(--dim-white);">
+                    {{ s.name }}{% if s.price %} ({{ s.price }}){% endif %}
+                  </a>
+                  {% endfor %}
+                </div>
+                {% endif %}
+                {% if not sub_sources and not sub_sources2 and not rent_sources %}
+                <span style="font-size:.72rem;color:var(--dim-white);">Not available on major streaming services</span>
+                {% endif %}
+              {% else %}
+              <span style="font-size:.72rem;color:var(--dim-white);">Streaming data not yet cached — run refresh in Admin</span>
+              {% endif %}
             </div>
             {% endif %}
             <div class="mobile-links-row" style="display:none;margin-top:10px;gap:8px;">
@@ -447,48 +475,7 @@
     "Fandango":"https://img.icons8.com/color/24/fandango.png",
   };
 
-  async function loadStreaming(imdbId, el) {
-    if(!imdbId || !el) return;
-    try {
-      var res  = await fetch('/api/streaming/'+imdbId);
-      var data = await res.json();
-      if(!data.sources || data.sources.length===0){
-        el.innerHTML='<span style="font-size:.72rem;color:var(--dim-white);">Not available on major streaming services</span>';
-        return;
-      }
-      var subSources  = data.sources.filter(s => s.type === 'sub' || !s.type);
-      var rentSources = data.sources.filter(s => s.type === 'rent');
-      var html = '';
-      if (subSources.length > 0) {
-        html += '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px;">' +
-          '<span style="font-size:.72rem;color:var(--dim-white);white-space:nowrap;">Stream on:</span>' +
-          subSources.map(s => {
-            var logo = _streamingLogos[s.name] || '';
-            var url  = s.web_url || '#';
-            return '<a class="streaming-badge" href="'+url+'" target="_blank">' +
-              (logo ? '<img src="'+logo+'" alt="'+s.name+'">' : '') +
-              s.name + '</a>';
-          }).join('') + '</div>';
-      }
-      if (rentSources.length > 0) {
-        html += '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
-          '<span style="font-size:.72rem;color:var(--dim-white);white-space:nowrap;">Rent/Buy:</span>' +
-          rentSources.map(s => {
-            var logo = _streamingLogos[s.name] || '';
-            var url  = s.web_url || '#';
-            var price = s.price ? ' ('+s.price+')' : '';
-            return '<a class="streaming-badge" href="'+url+'" target="_blank" style="border-color:rgba(240,192,64,.3);color:var(--dim-white);">' +
-              (logo ? '<img src="'+logo+'" alt="'+s.name+'">' : '') +
-              s.name + price + '</a>';
-          }).join('') + '</div>';
-      }
-      el.innerHTML = html;
-    } catch(e) {
-      el.innerHTML='<span style="font-size:.72rem;color:var(--dim-white);">Could not load streaming info</span>';
-    }
-  }
-
-  document.querySelectorAll('.title-btn').forEach(btn=>{
+    document.querySelectorAll('.title-btn').forEach(btn=>{
     btn.addEventListener('click',()=>{
       var idx=btn.dataset.idx;
       var row=document.getElementById(`details-${idx}`);
