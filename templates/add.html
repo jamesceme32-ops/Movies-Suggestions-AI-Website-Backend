@@ -268,6 +268,7 @@
         </p>
         <div id="streaming-status-line" style="font-size:.78rem;color:var(--dim-white);margin-bottom:10px;">
           <button class="btn btn-secondary btn-sm" onclick="checkStreamingStatus()" style="font-size:.72rem;">Check Status</button>
+        <button class="btn btn-secondary btn-sm" onclick="rebuildStreamingIndex()" style="font-size:.72rem;margin-left:6px;">🗂 Rebuild Filter Index</button>
         </div>
         <div style="display:flex;gap:10px;flex-wrap:wrap;">
           <button class="btn btn-secondary btn-sm" id="streamingFillBtn" onclick="startStreamingRefresh(false)">
@@ -856,6 +857,18 @@
     btn.disabled = false; btn.textContent = '🔧 Force Fix Remaining';
   };
 
+
+  window.rebuildStreamingIndex = async function() {
+    var el = document.getElementById('streaming-status-line');
+    el.textContent = 'Rebuilding index...';
+    try {
+      var res  = await fetch('/admin/rebuild-streaming-index', { method: 'POST', credentials: 'same-origin' });
+      var data = await res.json();
+      el.textContent = '✅ Index rebuilt from ' + data.rebuilt + ' cached movies (' + data.missing + ' not yet cached)';
+    } catch(e) {
+      el.textContent = 'Error: ' + e.message;
+    }
+  };
 
   window.checkStreamingStatus = async function() {
     var el = document.getElementById('streaming-status-line');
