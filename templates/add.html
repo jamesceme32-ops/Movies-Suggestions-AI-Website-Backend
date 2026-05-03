@@ -269,9 +269,18 @@
         <div id="streaming-status-line" style="font-size:.78rem;color:var(--dim-white);margin-bottom:10px;">
           <button class="btn btn-secondary btn-sm" onclick="checkStreamingStatus()" style="font-size:.72rem;">Check Status</button>
         </div>
-        <button class="btn btn-secondary btn-sm" id="streamingRefreshBtn" onclick="startStreamingRefresh()">
-          📡 Refresh Streaming Cache
-        </button>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button class="btn btn-secondary btn-sm" id="streamingFillBtn" onclick="startStreamingRefresh(false)">
+            📡 Fill New Movies
+          </button>
+          <button class="btn btn-secondary btn-sm" id="streamingForceBtn" onclick="startStreamingRefresh(true)">
+            🔄 Force Refresh All
+          </button>
+        </div>
+        <p style="font-size:.74rem;color:var(--dim-white);margin-top:6px;">
+          <strong>Fill New Movies</strong> — only fetches movies with no cached data (use after adding new movies)<br>
+          <strong>Force Refresh All</strong> — refetches every movie regardless of cache (use to catch streaming changes, ~1 month)
+        </p>
         <div id="streamingRefreshResult" style="display:none;margin-top:10px;font-size:.82rem;color:var(--star-white);"></div>
       </div>
 
@@ -886,7 +895,10 @@
           '</span>';
         if (d.complete || (!d.running && d.done > 0)) {
           clearInterval(_streamingPollTimer);
-          btn.disabled = false; btn.textContent = '📡 Refresh Streaming Cache';
+          if(fillBtn) fillBtn.disabled = false;
+    if(forceBtn) forceBtn.disabled = false;
+    fillBtn.textContent = '📡 Fill New Movies';
+    forceBtn.textContent = '🔄 Force Refresh All';
           var summary = d.error
             ? '<br>❌ Error: ' + d.error
             : '<br>✅ Complete! Fetched: ' + d.fetched + '  Skipped: ' + d.skipped;
@@ -896,25 +908,35 @@
       }).catch(() => setTimeout(pollStreamingProgress, 2000));
   }
 
-  window.startStreamingRefresh = async function() {
-    var btn = document.getElementById('streamingRefreshBtn');
+  window.startStreamingRefresh = async function(force) {
+    var fillBtn  = document.getElementById('streamingFillBtn');
+    var forceBtn = document.getElementById('streamingForceBtn');
+    var btn = force ? forceBtn : fillBtn;
     var out = document.getElementById('streamingRefreshResult');
-    btn.disabled = true; btn.textContent = '⏳ Starting...';
+    if(fillBtn) fillBtn.disabled = true;
+    if(forceBtn) forceBtn.disabled = true;
+    btn.textContent = '⏳ Starting...';
     out.style.display = 'block';
     out.innerHTML = '<span style="color:var(--dim-white);">Starting background refresh...</span>';
     try {
-      var res  = await fetch('/admin/refresh-streaming', { method: 'POST', credentials: 'same-origin' });
+      var res  = await fetch('/admin/refresh-streaming', { method: 'POST', credentials: 'same-origin', headers: {'Content-Type':'application/json'}, body: JSON.stringify({force: !!force}) });
       var data = await res.json();
       if (data.error) {
         out.innerHTML = '❌ ' + data.error;
-        btn.disabled = false; btn.textContent = '📡 Refresh Streaming Cache';
+        if(fillBtn) fillBtn.disabled = false;
+    if(forceBtn) forceBtn.disabled = false;
+    fillBtn.textContent = '📡 Fill New Movies';
+    forceBtn.textContent = '🔄 Force Refresh All';
         return;
       }
-      btn.textContent = '⏳ Refreshing...';
+      btn.textContent = force ? '⏳ Force Refreshing...' : '⏳ Filling New...';
       _streamingPollTimer = setInterval(pollStreamingProgress, 1500);
     } catch(e) {
       out.textContent = '❌ Error: ' + e.message;
-      btn.disabled = false; btn.textContent = '📡 Refresh Streaming Cache';
+      if(fillBtn) fillBtn.disabled = false;
+    if(forceBtn) forceBtn.disabled = false;
+    fillBtn.textContent = '📡 Fill New Movies';
+    forceBtn.textContent = '🔄 Force Refresh All';
     }
   };
 
