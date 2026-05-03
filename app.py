@@ -41,6 +41,17 @@ _STREAMING_SOURCES = {
     "Hulu": 157, "Apple TV+": 371, "Paramount+": 444, "Peacock Premium": 322,
     "Showtime": 43, "Starz": 191, "MGM+": 529, "YouTube": 248, "Crunchyroll": 238,
 }
+# Rental/purchase sources shown separately with "(Rent)" label
+_RENTAL_SOURCES = {
+    "Apple TV": 371,       # also does rentals
+    "Prime Video": 26,     # also does rentals
+    "YouTube": 248,        # also does rentals
+    "Vudu": 7,
+    "Google Play": 3,
+    "Microsoft": 8,
+    "Fandango": 17,
+    "AMC+": 528,
+}
 
 def get_streaming_availability(imdb_id):
     """
@@ -98,16 +109,30 @@ def get_streaming_availability(imdb_id):
             _cache_streaming(cache_key, [], _dt)
             return []
         raw = sources_r.json()
-        seen = set(); sources = []
-        target_ids = set(_STREAMING_SOURCES.values())
+        seen_sub = set(); seen_rent = set(); sources = []
+        sub_ids    = set(_STREAMING_SOURCES.values())
+        rental_ids = set(_RENTAL_SOURCES.values())
         for s in (raw if isinstance(raw, list) else []):
-            sid = s.get("source_id")
-            if sid not in target_ids or s.get("type") != "sub" or sid in seen:
-                continue
-            seen.add(sid)
-            name = next((k for k, v in _STREAMING_SOURCES.items() if v == sid), "")
-            if name:
-                sources.append({"name": name, "web_url": s.get("web_url", "")})
+            sid  = s.get("source_id")
+            stype = s.get("type", "")
+            # Subscription sources
+            if stype == "sub" and sid in sub_ids and sid not in seen_sub:
+                seen_sub.add(sid)
+                name = next((k for k, v in _STREAMING_SOURCES.items() if v == sid), "")
+                if name:
+                    sources.append({"name": name, "web_url": s.get("web_url",""), "type": "sub"})
+            # Rental sources (type="rent" or "buy")
+            elif stype in ("rent", "buy") and sid in rental_ids and sid not in seen_rent:
+                seen_rent.add(sid)
+                name = next((k for k, v in _RENTAL_SOURCES.items() if v == sid), "")
+                price = s.get("price")
+                if name:
+                    sources.append({
+                        "name": name,
+                        "web_url": s.get("web_url",""),
+                        "type": "rent",
+                        "price": f"${price:.2f}" if price else None
+                    })
         _cache_streaming(cache_key, sources, _dt)
         app.logger.info(f"Watchmode {imdb_id}: {len(sources)} sources")
         return sources
