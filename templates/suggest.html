@@ -348,16 +348,23 @@
               <div><strong>Cast</strong><p>{{ m.cast or m.actors or '—' }}</p></div>
               <div><strong>Language</strong><p>{{ m.language or '—' }}</p></div>
             </div>
-            {% if m.streaming or m.imdb_id %}
+            {% if m.imdb_id %}
             <div class="streaming-icons" style="margin-top:10px;">
-              {% set sub_sources  = m.streaming | selectattr("type","eq","sub")  | list %}
-              {% set rent_sources = m.streaming | selectattr("type","eq","rent") | list %}
-              {% set sub_sources2  = m.streaming | rejectattr("type","defined") | list %}
-              {% if m.streaming %}
-                {% if sub_sources or sub_sources2 %}
-                <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px;">
+              {% if m.streaming is none %}
+                <span style="font-size:.72rem;color:var(--dim-white);">Streaming data not cached — run refresh in Admin</span>
+              {% elif m.streaming | length == 0 %}
+                <span style="font-size:.72rem;color:var(--dim-white);">Not available on major streaming services</span>
+              {% else %}
+                {% set sub_sources  = [] %}
+                {% set rent_sources = [] %}
+                {% for s in m.streaming %}
+                  {% if s.type == 'sub' %}{% set sub_sources  = sub_sources  + [s] %}{% endif %}
+                  {% if s.type in ('rent','buy') %}{% set rent_sources = rent_sources + [s] %}{% endif %}
+                {% endfor %}
+                {% if sub_sources %}
+                <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:6px;">
                   <span style="font-size:.72rem;color:var(--dim-white);white-space:nowrap;">Stream on:</span>
-                  {% for s in (sub_sources + sub_sources2) %}
+                  {% for s in sub_sources %}
                   <a class="streaming-badge" href="{{ s.web_url or '#' }}" target="_blank">{{ s.name }}</a>
                   {% endfor %}
                 </div>
@@ -367,17 +374,15 @@
                   <span style="font-size:.72rem;color:var(--dim-white);white-space:nowrap;">Rent/Buy:</span>
                   {% for s in rent_sources %}
                   <a class="streaming-badge" href="{{ s.web_url or '#' }}" target="_blank"
-                     style="border-color:rgba(240,192,64,.3);color:var(--dim-white);">
+                     style="border-color:rgba(240,192,64,.35);color:var(--dim-white);">
                     {{ s.name }}{% if s.price %} ({{ s.price }}){% endif %}
                   </a>
                   {% endfor %}
                 </div>
                 {% endif %}
-                {% if not sub_sources and not sub_sources2 and not rent_sources %}
+                {% if not sub_sources and not rent_sources %}
                 <span style="font-size:.72rem;color:var(--dim-white);">Not available on major streaming services</span>
                 {% endif %}
-              {% else %}
-              <span style="font-size:.72rem;color:var(--dim-white);">Streaming data not yet cached — run refresh in Admin</span>
               {% endif %}
             </div>
             {% endif %}
