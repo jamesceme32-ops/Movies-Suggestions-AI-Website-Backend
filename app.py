@@ -130,18 +130,15 @@ def get_streaming_availability(imdb_id):
             timeout=10)
         if not search_r.ok:
             app.logger.warning(f"Watchmode search failed {imdb_id}: {search_r.status_code}")
-            # Cache empty result so we don't retry on every page load
-            _cache_streaming(cache_key, [], _dt)
-            return []
+            return []  # Don't cache — let it retry next refresh
         search_data = search_r.json()
         title_results = search_data.get("title_results", [])
         if not title_results:
-            _cache_streaming(cache_key, [], _dt)
+            _cache_streaming(cache_key, [], _dt)  # Confirmed not on Watchmode
             return []
         watchmode_id = title_results[0].get("id")
         if not watchmode_id:
-            _cache_streaming(cache_key, [], _dt)
-            return []
+            return []  # Don't cache
 
         # Step 2: get sources for this Watchmode title ID
         sources_r = requests.get(
@@ -149,8 +146,8 @@ def get_streaming_availability(imdb_id):
             params={"apiKey": WATCHMODE_API_KEY},
             timeout=10)
         if not sources_r.ok:
-            _cache_streaming(cache_key, [], _dt)
-            return []
+            app.logger.warning(f"Watchmode sources failed {imdb_id}: {sources_r.status_code}")
+            return []  # Don't cache on error
         raw = sources_r.json()
         seen_sub = set(); seen_rent = set(); sources = []
         sub_ids    = set(_STREAMING_SOURCES.values())
@@ -1778,43 +1775,51 @@ def _streaming_refresh_background(force=False):
 @app.route("/admin/test-streaming")
 @admin_required
 def admin_test_streaming():
-    """Test Watchmode API + show raw sources for The Godfather."""
-    import datetime as _dt
-    test_id = "tt0068646"
+    """Test Watchmode API + show raw sources for any movie."""
+    imdb_id = request.args.get("id", "tt0068646")
     result = {
-        "imdb_id": test_id,
+        "imdb_id": imdb_id,
         "watchmode_key_set": bool(WATCHMODE_API_KEY),
         "key_preview": WATCHMODE_API_KEY[:8]+"..." if WATCHMODE_API_KEY else "",
     }
+    # What's currently in R2 cache
+    try:
+        cached = r2_storage._get(f"streaming:{imdb_id}")
+        if cached:
+            cd = json.loads(cached)
+            result["cached_sources"] = cd.get("sources", [])
+            result["cached_at"] = cd.get("cached_at", "unknown")
+        else:
+            result["cached_sources"] = None
+            result["cached_at"] = None
+    except Exception as e:
+        result["cache_error"] = str(e)
+
+    # Live API call
     if WATCHMODE_API_KEY:
         try:
             r1 = requests.get("https://api.watchmode.com/v1/search/",
                 params={"apiKey": WATCHMODE_API_KEY, "search_field": "imdb_id",
-                        "search_value": test_id}, timeout=10)
+                        "search_value": imdb_id}, timeout=10)
+            result["search_status"] = r1.status_code
             title_results = r1.json().get("title_results", []) if r1.ok else []
-            result["search_ok"] = r1.ok
             if title_results:
                 wid = title_results[0]["id"]
                 result["watchmode_id"] = wid
                 r2 = requests.get(f"https://api.watchmode.com/v1/title/{wid}/sources/",
                     params={"apiKey": WATCHMODE_API_KEY}, timeout=10)
+                result["sources_status"] = r2.status_code
                 raw = r2.json() if r2.ok else []
-                result["sources_count"] = len(raw) if isinstance(raw, list) else 0
-                result["all_sources"] = [
+                result["live_sources"] = [
                     {"name": s.get("name"), "source_id": s.get("source_id"),
                      "type": s.get("type"), "price": s.get("price"),
                      "region": s.get("region")}
                     for s in (raw if isinstance(raw, list) else [])
-                    if s.get("region") in ("US", None)
-                ][:20]
+                ] if r2.ok else raw
+            else:
+                result["title_results"] = "none found"
         except Exception as e:
-            result["error"] = str(e)
-    # Also show what's currently cached
-    try:
-        cached = r2_storage._get(f"streaming:{test_id}")
-        result["cached_sources"] = json.loads(cached).get("sources",[]) if cached else None
-    except Exception:
-        result["cached_sources"] = None
+            result["api_error"] = str(e)
     return jsonify(result)
 
 
