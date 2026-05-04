@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Where to Watch — {{ title }}{% endblock %}
+
+{% block head %}
+<style>
+  .streaming-page { max-width:700px; margin:40px auto; padding:0 16px; }
+  .streaming-hero { background:var(--panel); border:1px solid var(--panel-border); border-radius:14px; padding:28px 32px; margin-bottom:24px; }
+  .streaming-title { font-family:'Playfair Display',serif; font-size:1.5rem; color:var(--star-white); margin-bottom:4px; }
+  .streaming-year  { font-size:.85rem; color:var(--dim-white); }
+  .streaming-section { background:var(--panel); border:1px solid var(--panel-border); border-radius:12px; padding:20px 24px; margin-bottom:16px; }
+  .streaming-section-title { font-family:'Playfair Display',serif; font-size:.78rem; font-weight:700; letter-spacing:.06em; color:var(--cyan); text-transform:uppercase; margin-bottom:16px; display:flex; align-items:center; gap:10px; }
+  .streaming-section-title::after { content:''; flex:1; height:1px; background:linear-gradient(to right,var(--cyan-dim),transparent); }
+  .streaming-grid { display:flex; flex-wrap:wrap; gap:10px; }
+  .streaming-card { display:inline-flex; align-items:center; gap:8px; background:rgba(13,31,60,0.85); border:1px solid var(--panel-border); border-radius:8px; padding:8px 14px; text-decoration:none; color:var(--star-white); font-size:.85rem; transition:border-color .15s, background .15s; }
+  .streaming-card:hover { border-color:var(--cyan); background:rgba(64,200,240,.08); color:var(--cyan); }
+  .streaming-card.rent { border-color:rgba(240,192,64,.3); color:var(--dim-white); }
+  .streaming-card.rent:hover { border-color:var(--gold); color:var(--gold); }
+  .streaming-card .price { font-size:.75rem; color:var(--gold); margin-left:4px; }
+  .empty-note { color:var(--dim-white); font-size:.85rem; padding:8px 0; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="streaming-page">
+  <a href="javascript:history.back()" class="btn btn-secondary btn-sm" style="margin-bottom:20px;">← Back</a>
+
+  <div class="streaming-hero">
+    <div class="streaming-title">{{ title }}</div>
+    {% if year %}<div class="streaming-year">{{ year }}</div>{% endif %}
+  </div>
+
+  {% if not cached %}
+  <div class="streaming-section">
+    <p class="empty-note">Streaming data not yet cached for this movie. Run the streaming refresh in Admin.</p>
+  </div>
+  {% else %}
+
+  <div class="streaming-section">
+    <div class="streaming-section-title">Subscription Streaming</div>
+    {% if sub_sources %}
+    <div class="streaming-grid">
+      {% for s in sub_sources %}
+      <a class="streaming-card" href="{{ s.web_url or '#' }}" target="_blank">{{ s.name }}</a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="empty-note">Not available on subscription streaming services.</p>
+    {% endif %}
+  </div>
+
+  <div class="streaming-section">
+    <div class="streaming-section-title">Rent / Buy</div>
+    {% if rent_sources %}
+    <div class="streaming-grid">
+      {% for s in rent_sources %}
+      <a class="streaming-card rent" href="{{ s.web_url or '#' }}" target="_blank">
+        {{ s.name }}{% if s.price %}<span class="price">{{ s.price }}</span>{% endif %}
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="empty-note">Not available to rent or buy on major platforms.</p>
+    {% endif %}
+  </div>
+
+  {% endif %}
+</div>
+{% endblock %}
