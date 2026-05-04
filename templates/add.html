@@ -277,10 +277,14 @@
           <button class="btn btn-secondary btn-sm" id="streamingForceBtn" onclick="startStreamingRefresh(true)">
             🔄 Force Refresh All
           </button>
+          <button class="btn btn-danger btn-sm" onclick="clearEmptyStreamingCache()" id="clearBadCacheBtn">
+            🗑 Clear Bad Caches
+          </button>
         </div>
         <p style="font-size:.74rem;color:var(--dim-white);margin-top:6px;">
-          <strong>Fill New Movies</strong> — only fetches movies with no cached data (use after adding new movies)<br>
-          <strong>Force Refresh All</strong> — refetches every movie regardless of cache (use to catch streaming changes, ~1 month)
+          <strong>Fill New Movies</strong> — fetches movies with no data or empty data (safe to run anytime)<br>
+          <strong>Force Refresh All</strong> — refetches everything (uses ~2,352 API calls — monthly limit is 2,500)<br>
+          <strong>Clear Bad Caches</strong> — removes empty cache entries caused by rate limiting, then run Fill New Movies
         </p>
         <div id="streamingRefreshResult" style="display:none;margin-top:10px;font-size:.82rem;color:var(--star-white);"></div>
       </div>
@@ -857,6 +861,22 @@
     btn.disabled = false; btn.textContent = '🔧 Force Fix Remaining';
   };
 
+
+  window.clearEmptyStreamingCache = async function() {
+    var btn = document.getElementById('clearBadCacheBtn');
+    btn.disabled = true; btn.textContent = 'Clearing...';
+    try {
+      var res  = await fetch('/admin/clear-empty-streaming-cache', { method: 'POST', credentials: 'same-origin' });
+      var data = await res.json();
+      var el = document.getElementById('streaming-status-line');
+      el.innerHTML = '✅ ' + data.message + ' <strong style="color:var(--gold);">Kept: ' + data.kept + '</strong>';
+      btn.textContent = '✅ Done';
+    } catch(e) {
+      alert('Error: ' + e.message);
+      btn.textContent = '🗑 Clear Bad Caches';
+    }
+    btn.disabled = false;
+  };
 
   window.rebuildStreamingIndex = async function() {
     var el = document.getElementById('streaming-status-line');
