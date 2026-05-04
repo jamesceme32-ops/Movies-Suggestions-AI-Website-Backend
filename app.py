@@ -1743,10 +1743,17 @@ def _streaming_refresh_background(force=False):
             imdb_id = _extract_imdb_id(m.get("imdb_url",""))
             skip = False
             if not force:
-                # Skip if already cached
+                # Skip only if cached with actual data (non-empty sources list)
                 try:
-                    if r2_storage._get(f"streaming:{imdb_id}"):
-                        skip = True
+                    raw = r2_storage._get(f"streaming:{imdb_id}")
+                    if raw:
+                        data = json.loads(raw)
+                        # Skip if has sources OR was genuinely confirmed empty
+                        # Re-fetch if sources=[] with no cached_at (bad empty cache from error)
+                        if data.get("sources") or data.get("cached_at"):
+                            # Only skip if it has real sources
+                            if data.get("sources"):
+                                skip = True
                 except Exception:
                     pass
             elif force:
@@ -1771,6 +1778,33 @@ def _streaming_refresh_background(force=False):
         _STREAMING_INDEX = None
     except Exception as e:
         STREAMING_REFRESH_STATUS.update({"running": False, "complete": True, "error": str(e)})
+
+@app.route("/admin/clear-empty-streaming-cache", methods=["POST"])
+@admin_required
+def admin_clear_empty_streaming():
+    """Delete all streaming cache entries that have empty sources list (bad caches from rate limiting)."""
+    db     = r2_storage.load_movies_db()
+    movies = db.get("movies", [])
+    cleared = 0; kept = 0
+    for m in movies:
+        imdb_id = _extract_imdb_id(m.get("imdb_url",""))
+        if not imdb_id: continue
+        try:
+            raw = r2_storage._get(f"streaming:{imdb_id}")
+            if raw:
+                data = json.loads(raw)
+                if not data.get("sources"):  # empty list
+                    r2_storage._delete(f"streaming:{imdb_id}")
+                    cleared += 1
+                else:
+                    kept += 1
+        except Exception:
+            pass
+    global _STREAMING_INDEX
+    _STREAMING_INDEX = None  # force reload
+    return jsonify({"cleared": cleared, "kept": kept,
+                    "message": f"Cleared {cleared} empty caches. Now run Fill New Movies to refetch them."})
+
 
 @app.route("/admin/test-streaming")
 @admin_required
