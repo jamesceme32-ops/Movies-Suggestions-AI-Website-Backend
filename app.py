@@ -72,9 +72,12 @@ _RENTAL_SOURCES = {
 _STREAMING_MEM_CACHE = {}
 
 def _get_cached_streaming(imdb_id):
-    """Read streaming data from R2 cache — no API call, returns [] if not cached."""
+    """
+    Read streaming data from R2 cache.
+    Returns list (possibly empty) if cached, or None if never cached.
+    """
     if not imdb_id:
-        return []
+        return None
     if imdb_id in _STREAMING_MEM_CACHE:
         return _STREAMING_MEM_CACHE[imdb_id]
     try:
@@ -85,8 +88,9 @@ def _get_cached_streaming(imdb_id):
             return sources
     except Exception:
         pass
-    _STREAMING_MEM_CACHE[imdb_id] = []
-    return []
+    # Not cached — store None so we don't keep hitting R2
+    _STREAMING_MEM_CACHE[imdb_id] = None
+    return None
 
 def _clear_streaming_mem_cache():
     """Clear in-process cache — call at start of each suggest request."""
