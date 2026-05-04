@@ -75,22 +75,23 @@ def _get_cached_streaming(imdb_id):
     """
     Read streaming data from R2 cache.
     Returns list (possibly empty) if cached, or None if never cached.
+    Never stores None in mem cache so stale "not found" doesn't persist.
     """
     if not imdb_id:
         return None
-    if imdb_id in _STREAMING_MEM_CACHE:
+    # Only use mem cache if it has a real result (list, even empty)
+    if imdb_id in _STREAMING_MEM_CACHE and _STREAMING_MEM_CACHE[imdb_id] is not None:
         return _STREAMING_MEM_CACHE[imdb_id]
     try:
-        cached = r2_storage._get(f"streaming:{imdb_id}")
-        if cached:
-            sources = json.loads(cached).get("sources", [])
+        raw = r2_storage._get(f"streaming:{imdb_id}")
+        if raw:
+            data = json.loads(raw)
+            sources = data.get("sources", [])
             _STREAMING_MEM_CACHE[imdb_id] = sources
             return sources
     except Exception:
         pass
-    # Not cached — store None so we don't keep hitting R2
-    _STREAMING_MEM_CACHE[imdb_id] = None
-    return None
+    return None  # Not in R2 — don't cache this in memory
 
 def _clear_streaming_mem_cache():
     """Clear in-process cache — call at start of each suggest request."""
@@ -1056,10 +1057,8 @@ def suggest():
                 d["taste"]     = r.get("Taste Match %","")
                 d["score"]     = r.get("Composite Score","")
                 results.append(d)
-            # Inject streaming data for result movies only (not all 1176)
-            for d in results:
-                if d.get("imdb_id"):
-                    d["streaming"] = _get_cached_streaming(d["imdb_id"])
+            # Streaming data loaded on /streaming/<imdb_id> page
+            # Don't inject here — keeps recommendations fast
         except Exception: pass
 
     return render_template("suggest.html", profile=profile_summary, year_labels=YEAR_LABELS,
@@ -1804,6 +1803,27 @@ def admin_clear_empty_streaming():
     _STREAMING_INDEX = None  # force reload
     return jsonify({"cleared": cleared, "kept": kept,
                     "message": f"Cleared {cleared} empty caches. Now run Fill New Movies to refetch them."})
+
+
+@app.route("/streaming/<imdb_id>")
+def streaming_page(imdb_id):
+    """Standalone page showing streaming availability for a movie."""
+    # Get movie title from DB for display
+    db = r2_storage.load_movies_db()
+    movies = db.get("movies", [])
+    movie = next((m for m in movies if _extract_imdb_id(m.get("imdb_url","")) == imdb_id), None)
+    title = movie.get("title","") if movie else ""
+    year  = movie.get("year","")  if movie else ""
+
+    # Get cached streaming data
+    sources = _get_cached_streaming(imdb_id) or []
+    sub_sources  = [s for s in sources if s.get("type") == "sub"]
+    rent_sources = [s for s in sources if s.get("type") in ("rent","buy")]
+
+    return render_template("streaming.html",
+        imdb_id=imdb_id, title=title, year=year,
+        sub_sources=sub_sources, rent_sources=rent_sources,
+        cached=(sources is not None))
 
 
 @app.route("/admin/test-streaming")
