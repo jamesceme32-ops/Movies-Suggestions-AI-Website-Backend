@@ -48,9 +48,9 @@
     {% endif %}
   </div>
 
+  {% if rent_sources %}
   <div class="streaming-section">
-    <div class="streaming-section-title">Rent / Buy</div>
-    {% if rent_sources %}
+    <div class="streaming-section-title">Rent</div>
     <div class="streaming-grid">
       {% for s in rent_sources %}
       <a class="streaming-card rent" href="{{ s.web_url or '#' }}" target="_blank">
@@ -58,10 +58,28 @@
       </a>
       {% endfor %}
     </div>
-    {% else %}
-    <p class="empty-note">Not available to rent or buy on major platforms.</p>
-    {% endif %}
   </div>
+  {% endif %}
+
+  {% if buy_sources %}
+  <div class="streaming-section">
+    <div class="streaming-section-title">Buy</div>
+    <div class="streaming-grid">
+      {% for s in buy_sources %}
+      <a class="streaming-card rent" href="{{ s.web_url or '#' }}" target="_blank">
+        {{ s.name }}{% if s.price %}<span class="price">{{ s.price }}</span>{% endif %}
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if not rent_sources and not buy_sources %}
+  <div class="streaming-section">
+    <div class="streaming-section-title">Rent / Buy</div>
+    <p class="empty-note">Not available to rent or buy on major platforms.</p>
+  </div>
+  {% endif %}
 
   {% endif %}
 </div>
