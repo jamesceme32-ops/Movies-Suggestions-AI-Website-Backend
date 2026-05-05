@@ -1849,6 +1849,9 @@ def admin_test_streaming():
             cd = json.loads(cached)
             result["cached_sources"] = cd.get("sources", [])
             result["cached_at"] = cd.get("cached_at", "unknown")
+            # Show what types are present
+            types = list(set(s.get("type") for s in cd.get("sources",[])))
+            result["cached_types"] = types
         else:
             result["cached_sources"] = None
             result["cached_at"] = None
