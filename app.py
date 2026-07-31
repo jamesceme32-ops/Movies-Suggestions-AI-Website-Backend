@@ -38,35 +38,37 @@ WATCHMODE_API_KEY = os.environ.get("WATCHMODE_API_KEY", "")
 
 # Subscription streaming services (source_id from Watchmode)
 _STREAMING_SOURCES = {
-    "Netflix":         203,
-    "Prime Video":     26,
-    "Disney+":         372,
-    "MAX":             1825,
-    "Hulu":            157,
-    "Apple TV+":       371,
-    "Paramount+":      444,
-    "Peacock Premium": 322,
-    "Showtime":        43,
-    "Starz":           191,
-    "MGM+":            529,
-    "YouTube":         248,
-    "Crunchyroll":     238,
-    "AMC+":            526,
-    "BritBox":         282,
+    "Netflix":                 203,
+    "Prime Video":             26,
+    "Disney+":                 372,
+    "MAX":                     1825,
+    "Hulu":                    157,
+    "Apple TV+":               371,
+    "Paramount+":              444,
+    "Paramount+ (Via Amazon)": 489,
+    "YouTube TV":              469,
+    "Peacock Premium":         322,
+    "Showtime":                43,
+    "Starz":                   191,
+    "MGM+":                    529,
+    "Crunchyroll":             238,
+    "AMC+":                    526,
+    "BritBox":                 282,
+    "Hoopla":                  390,
+    "Pluto TV":                391,
 }
-# Rental/purchase services with their Watchmode source_ids
-# Note: some IDs overlap with subscription (Apple TV+/Apple TV both = 371)
+# Rental/purchase — verified source_ids from Watchmode live API responses
 _RENTAL_SOURCES = {
-    "Apple TV":     371,   # rental version of Apple TV+
-    "Amazon Video": 16,    # Amazon rental (different from Prime Video sub=26)
-    "Prime Video":  26,    # Prime Video also does rentals
-    "YouTube":      248,   # YouTube also rents
-    "Vudu":         7,
-    "Google Play":  3,
-    "Microsoft":    8,
-    "Fandango":     17,
-    "DirecTV":      6,
-    "Spectrum":     60,
+    "Apple TV":         349,
+    "Amazon":           24,
+    "YouTube":          344,
+    "Google Play":      140,
+    "Fandango at Home": 307,
+    "Spectrum":         443,
+    "FlixFling":        399,
+    "Vudu":             7,
+    "Microsoft":        8,
+    "DirecTV":          6,
 }
 
 
@@ -847,7 +849,7 @@ def predict_scores(df, model, scaler, feat_cols):
 # ══════════════════════════════════════════════
 
 def score_and_filter(df, profile, predicted, style,
-                     genre_override=None, genre_match="any", era_override=None,
+                     genre_override=None, genre_match="any", genre_exclude=None, era_override=None,
                      dur_override=None, person_filter=None, streaming_override=None,
                      watched_filter="Both", top_n=100):
     res = df.copy()
@@ -903,7 +905,16 @@ def score_and_filter(df, profile, predicted, style,
             axis=1
         )]
 
-    # Boost movies matching MORE of the selected genres to the top
+    # Exclude movies containing any excluded genre
+    if genre_exclude:
+        g_exc = [x.lower().strip() for x in genre_exclude]
+        def _genre_excluded(row):
+            g1 = [p.strip() for p in str(row.get("genre1","")).split("/")]
+            g2 = [p.strip() for p in str(row.get("genre2","")).split("/")]
+            return any(gx in set(g1+g2) for gx in g_exc)
+        res = res[~res.apply(_genre_excluded, axis=1)]
+
+        # Boost movies matching MORE of the selected genres to the top
     if genre_override:
         g_list = [x.lower().strip() for x in genre_override]
         def _match_count(row):
@@ -1051,6 +1062,7 @@ def suggest():
                                    request.form.get("style","Balanced"),
                                    genre_override=request.form.getlist("genre") or None,
                           genre_match=request.form.get("genre_match","any"),
+                          genre_exclude=request.form.getlist("genre_exclude") or None,
                           streaming_override=request.form.getlist("streaming") or None,
                                    era_override=request.form.getlist("era") or None,
                                    dur_override=request.form.getlist("dur") or None,
