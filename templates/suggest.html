@@ -60,6 +60,16 @@
     font-size: .78rem; color: var(--dim-white);
     font-family: 'Inter', sans-serif;
   }
+  .toggle-btn.excluded {
+    background: rgba(220,50,50,0.12);
+    border-color: rgba(220,50,50,0.6);
+    color: rgba(220,50,50,0.8);
+    text-decoration: line-through;
+  }
+  .toggle-btn.excluded:hover {
+    background: rgba(220,50,50,0.18);
+    border-color: rgba(220,50,50,0.9);
+  }
   .filter-section { margin-bottom:20px; }
 
   /* Table */
@@ -197,11 +207,13 @@
       <div class="form-label">Genre <span style="font-weight:400;font-size:.78rem;color:var(--dim-white);">— select any (blank = auto)</span></div>
       <div class="toggle-group" id="genre-group">
         {% set sel_g = form.getlist('genre') %}
+        {% set exc_g = form.getlist('genre_exclude') %}
         {% for g in all_genres %}
-        <button type="button" class="toggle-btn {% if g in sel_g %}active{% endif %}" data-val="{{ g }}">{{ g }}</button>
+        <button type="button" class="toggle-btn {% if g in sel_g %}active{% elif g in exc_g %}excluded{% endif %}" data-val="{{ g }}">{{ g }}</button>
         {% endfor %}
       </div>
       <div id="genre-inputs"></div>
+      <div id="genre-exclude-inputs"></div>
       <!-- Require All Genres toggle -->
       <div id="genre-match-row" style="display:flex;margin-top:10px;align-items:center;gap:10px;flex-wrap:wrap;">
         <button type="button" id="genre-match-btn" class="toggle-btn" onclick="toggleGenreMatch()"
@@ -421,7 +433,50 @@
     document.querySelectorAll(`#${gId} .toggle-btn`).forEach(b=>{b.addEventListener('click',()=>{b.classList.toggle('active');sync();if(gId==='genre-group')updateGenreMatchRow();});});
     sync();
   }
-  multi('genre-group','genre-inputs','genre');
+  // ── Tri-state genre buttons ──────────────────────────────────────────────
+  (function() {
+    var group    = document.getElementById('genre-group');
+    var incDiv   = document.getElementById('genre-inputs');
+    var excDiv   = document.getElementById('genre-exclude-inputs');
+    if (!group) return;
+
+    function syncGenreInputs() {
+      incDiv.innerHTML = '';
+      excDiv.innerHTML = '';
+      group.querySelectorAll('.toggle-btn').forEach(function(b) {
+        var inp = document.createElement('input');
+        inp.type = 'hidden';
+        inp.value = b.dataset.val;
+        if (b.classList.contains('active')) {
+          inp.name = 'genre';
+          incDiv.appendChild(inp);
+        } else if (b.classList.contains('excluded')) {
+          inp.name = 'genre_exclude';
+          excDiv.appendChild(inp);
+        }
+      });
+      updateGenreMatchRow();
+    }
+
+    group.querySelectorAll('.toggle-btn').forEach(function(b) {
+      // Restore state from form (page reload after submit)
+      b.addEventListener('click', function() {
+        if (!b.classList.contains('active') && !b.classList.contains('excluded')) {
+          // unselected → included
+          b.classList.add('active');
+        } else if (b.classList.contains('active')) {
+          // included → excluded
+          b.classList.remove('active');
+          b.classList.add('excluded');
+        } else {
+          // excluded → unselected
+          b.classList.remove('excluded');
+        }
+        syncGenreInputs();
+      });
+    });
+    syncGenreInputs();
+  })();
   multi('era-group','era-inputs','era');
   multi('dur-group','dur-inputs','dur');
   multi('streaming-group','streaming-inputs','streaming');
