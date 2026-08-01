@@ -205,6 +205,7 @@
     </div>
     <div class="filter-section">
       <div class="form-label">Genre <span style="font-weight:400;font-size:.78rem;color:var(--dim-white);">— select any (blank = auto)</span></div>
+      <p style="font-size:.73rem;color:var(--dim-white);margin-bottom:8px;opacity:.85;">Click once to <span style="color:var(--cyan);">include</span> · Click twice to <span style="color:rgba(220,50,50,0.85);text-decoration:line-through;">exclude</span> · Click again to clear</p>
       <div class="toggle-group" id="genre-group">
         {% set sel_g = form.getlist('genre') %}
         {% set exc_g = form.getlist('genre_exclude') %}
